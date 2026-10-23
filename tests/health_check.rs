@@ -1,10 +1,13 @@
+mod common;
+
 use axum::{body::Body, http::Request};
-use newsletter_api::routes;
+use common::TestApp;
+use sqlx::PgPool;
 use tower::ServiceExt;
 
-#[tokio::test]
-async fn health_check() {
-    let app = routes::create_route();
+#[sqlx::test]
+async fn health_check(pool: PgPool) {
+    let app = TestApp::new(pool);
 
     let request = Request::builder()
         .uri("/health_check")
@@ -13,9 +16,10 @@ async fn health_check() {
         .expect("Failed to build request");
 
     let response = app
+        .app
         .oneshot(request)
         .await
         .expect("Failed to execute request");
 
-    assert!(response.status().is_success())
+    assert!(response.status().is_success());
 }
