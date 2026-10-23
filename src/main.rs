@@ -1,11 +1,12 @@
 use std::io;
 
-use newsletter_api::{configuration, startup};
+use newsletter_api::{configuration, startup, telemetry};
 use sqlx::PgPool;
 use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    telemetry::init();
     let configuration = configuration::get().expect("Failed to read configuration.");
     let pool = PgPool::connect(&configuration.database.connection_string())
         .await
