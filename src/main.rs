@@ -1,6 +1,7 @@
 use std::io;
 
 use newsletter_api::{configuration, startup, telemetry};
+use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
 
@@ -8,7 +9,7 @@ use tokio::net::TcpListener;
 async fn main() -> io::Result<()> {
     telemetry::init();
     let configuration = configuration::get().expect("Failed to read configuration.");
-    let pool = PgPool::connect(&configuration.database.connection_string())
+    let pool = PgPool::connect(configuration.database.connection_string().expose_secret())
         .await
         .expect("Failed to connect to Postgres.");
 
