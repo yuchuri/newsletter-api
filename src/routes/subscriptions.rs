@@ -1,5 +1,6 @@
 use axum::{Form, extract::State, http::StatusCode};
 use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::state::AppState;
 
@@ -9,23 +10,46 @@ pub struct SubscribeRequest {
     email: String,
 }
 
+#[tracing::instrument(
+    name = "Adding a new subscriber",
+    skip(state, request),
+    fields(
+        request_id = %Uuid::now_v7(),
+        user_email = %request.email,
+        user_name = %request.name
+    )
+)]
 pub async fn subscribe(
     State(state): State<AppState>,
     Form(request): Form<SubscribeRequest>,
-) -> Result<StatusCode, StatusCode> {
+) -> StatusCode {
+    match insert_subscriber(&state.pool, &request).await {
+        Ok(_) => StatusCode::OK,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+#[tracing::instrument(
+    name = "Saving new subscriber details in the database",
+    skip(form, pool)
+)]
+pub async fn insert_subscriber(
+    pool: &sqlx::PgPool,
+    form: &SubscribeRequest,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         insert into subscriptions (email, name)
         values ($1, $2)
         "#,
-        request.email,
-        request.name
+        form.email,
+        form.name
     )
-    .execute(&state.pool)
+    .execute(pool)
     .await
     .map_err(|err| {
-        eprintln!("Failed to execute query: {err:?}");
-        StatusCode::INTERNAL_SERVER_ERROR
+        tracing::error!("Failed to execute query: {err:?}");
+        err
     })?;
-    Ok(StatusCode::OK)
+    Ok(())
 }
