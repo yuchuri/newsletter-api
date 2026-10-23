@@ -19,9 +19,27 @@ jobs:
     name: Format, lint, and coverage
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: newsletter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:password@localhost:5432/newsletter
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install the Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -34,13 +52,18 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Install cargo-llvm-cov
+      - name: Install cargo-llvm-cov and sqlx-cli
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov@0.9.1
+          tool: cargo-llvm-cov@0.9.1,sqlx-cli
+
+      - name: Migrate database
+        run: |
+          sqlx database create
+          sqlx migrate run
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests and generate coverage
         run: cargo llvm-cov --all-targets --all-features --workspace
@@ -51,7 +74,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Audit dependencies
         uses: actions-rust-lang/audit@v1
