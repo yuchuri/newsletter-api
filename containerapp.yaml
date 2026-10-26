@@ -1,0 +1,48 @@
+location: eastasia
+type: Microsoft.App/containerApps
+properties:
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+    registries:
+      - server: ${ACR_NAME}.azurecr.io
+        username: ${ACR_NAME}
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: "${ACR_PASSWORD}"
+      - name: db-password
+        value: "${DB_PASSWORD}"
+  template:
+    containers:
+      - name: newsletter-api
+        image: ${ACR_NAME}.azurecr.io/newsletter-api:${IMAGE_TAG}
+        resources:
+          cpu: 0.25
+          memory: 0.5Gi
+        env:
+          - name: APP_ENVIRONMENT
+            value: "production"
+          - name: APP_DATABASE__HOST
+            value: "${DB_HOST}.postgres.database.azure.com"
+          - name: APP_DATABASE__PORT
+            value: "5432"
+          - name: APP_DATABASE__USERNAME
+            value: "postgres"
+          - name: APP_DATABASE__PASSWORD
+            secretRef: db-password
+          - name: APP_DATABASE__DATABASE_NAME
+            value: "newsletter"
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health_check
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+    scale:
+      minReplicas: 0
+      maxReplicas: 1
