@@ -2,12 +2,25 @@ use axum::{Form, extract::State, http::StatusCode};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::{
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    state::AppState,
+};
 
 #[derive(Deserialize)]
 pub struct SubscribeRequest {
     name: String,
     email: String,
+}
+
+impl TryFrom<SubscribeRequest> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: SubscribeRequest) -> Result<Self, Self::Error> {
+        let name = SubscriberName::try_from(value.name)?;
+        let email = SubscriberEmail::try_from(value.email)?;
+        Ok(NewSubscriber { name, email })
+    }
 }
 
 #[tracing::instrument(
@@ -23,7 +36,12 @@ pub async fn subscribe(
     State(state): State<AppState>,
     Form(request): Form<SubscribeRequest>,
 ) -> StatusCode {
-    match insert_subscriber(&state.pool, &request).await {
+    let new_subscriber = match request.try_into() {
+        Ok(subscriber) => subscriber,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+
+    match insert_subscriber(&state.pool, &new_subscriber).await {
         Ok(_) => StatusCode::OK,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -31,19 +49,19 @@ pub async fn subscribe(
 
 #[tracing::instrument(
     name = "Saving new subscriber details in the database",
-    skip(form, pool)
+    skip(pool, new_subscriber)
 )]
 pub async fn insert_subscriber(
     pool: &sqlx::PgPool,
-    form: &SubscribeRequest,
+    new_subscriber: &NewSubscriber,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         insert into subscriptions (email, name)
         values ($1, $2)
         "#,
-        form.email,
-        form.name
+        new_subscriber.email.as_ref(),
+        new_subscriber.name.as_ref()
     )
     .execute(pool)
     .await
