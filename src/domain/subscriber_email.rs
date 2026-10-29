@@ -24,7 +24,7 @@ impl AsRef<str> for SubscriberEmail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use claim::assert_err;
+    use claims::assert_err;
     use fake::{Fake, faker::internet::en::SafeEmail};
     use proptest::prelude::*;
     use rand::{SeedableRng, rngs::StdRng};
