@@ -1,11 +1,9 @@
 use axum::{Form, extract::State, http::StatusCode};
 use serde::Deserialize;
+use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{
-    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
-    state::AppState,
-};
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 
 #[derive(Deserialize)]
 pub struct SubscribeRequest {
@@ -25,14 +23,14 @@ impl TryFrom<SubscribeRequest> for NewSubscriber {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(state, request),
+    skip(pool, request),
     fields(
         user_email = %request.email,
         user_name = %request.name
     )
 )]
 pub async fn subscribe(
-    State(state): State<AppState>,
+    State(pool): State<PgPool>,
     Form(request): Form<SubscribeRequest>,
 ) -> StatusCode {
     let new_subscriber = match request.try_into() {
@@ -40,7 +38,7 @@ pub async fn subscribe(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
-    match insert_subscriber(&state.pool, &new_subscriber).await {
+    match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => StatusCode::OK,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
