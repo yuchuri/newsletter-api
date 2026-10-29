@@ -7,7 +7,7 @@ use tower::ServiceExt;
 
 #[sqlx::test]
 async fn health_check(pool: PgPool) {
-    let app = TestApp::new(pool);
+    let app = TestApp::new(pool).await;
 
     let request = Request::builder()
         .uri("/health_check")

@@ -2,29 +2,54 @@ mod common;
 
 use axum::http::StatusCode;
 use common::TestApp;
+use linkify::{LinkFinder, LinkKind};
 use sqlx::PgPool;
+use wiremock::{Mock, matchers};
 
 #[sqlx::test]
 async fn subscribe_returns_a_200_for_valid_from_data(pool: PgPool) {
-    let app = TestApp::new(pool);
-
+    let app = TestApp::new(pool).await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(matchers::path("/email"))
+        .and(matchers::method("POST"))
+        .respond_with(wiremock::ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
     let response = app.post_subscriptions(body).await;
 
     assert_eq!(response.status(), StatusCode::OK);
+}
 
-    let saved = sqlx::query!("select email, name from subscriptions")
+#[sqlx::test]
+async fn subscribe_persists_the_new_subscriber(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(matchers::path("/email"))
+        .and(matchers::method("POST"))
+        .respond_with(wiremock::ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body).await;
+
+    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
         .fetch_one(&app.pool)
         .await
-        .expect("Failed to fetch saved subscription");
+        .expect("Failed to fetch saved subscription.");
 
     assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
+    assert_eq!(saved.status, "pending_confirmation");
 }
 
 #[sqlx::test]
 async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
-    let app = TestApp::new(pool);
+    let app = TestApp::new(pool).await;
 
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
@@ -45,7 +70,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
 
 #[sqlx::test]
 async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPool) {
-    let app = TestApp::new(pool);
+    let app = TestApp::new(pool).await;
 
     let test_cases = vec![
         ("name=&email=ursula_le_guin%40gmail.com", "empty name"),
@@ -62,4 +87,51 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPoo
             "The API did not return 400 Bad Request when the payload was {error_message}."
         )
     }
+}
+
+#[sqlx::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(matchers::path("/email"))
+        .and(matchers::method("POST"))
+        .respond_with(wiremock::ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body).await;
+}
+
+#[sqlx::test]
+async fn subscribe_sends_a_confirmation_email_with_a_link(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(matchers::path("/email"))
+        .and(matchers::method("POST"))
+        .respond_with(wiremock::ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body).await;
+
+    let email_request = &app.email_server.received_requests().await.unwrap()[0];
+    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+    let get_link = |s: &str| {
+        let links: Vec<_> = LinkFinder::new()
+            .links(s)
+            .filter(|l| *l.kind() == LinkKind::Url)
+            .collect();
+        assert_eq!(links.len(), 1);
+        links[0].as_str().to_owned()
+    };
+
+    let html_link = get_link(&body["HtmlBody"].as_str().unwrap());
+    let text_link = get_link(&body["TextBody"].as_str().unwrap());
+
+    assert_eq!(html_link, text_link, "The two links should be identical");
 }
