@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Duration};
 
 use config::{Config, ConfigError};
 use secrecy::{ExposeSecret, SecretString};
@@ -9,10 +9,13 @@ use sqlx::{
     postgres::{PgConnectOptions, PgSslMode},
 };
 
+use crate::domain::SubscriberEmail;
+
 #[derive(Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
+    pub email_client: EmailClientSettings,
 }
 
 #[derive(Deserialize)]
@@ -102,5 +105,23 @@ impl DatabaseSettings {
             .database(&self.database_name)
             .ssl_mode(ssl_model)
             .log_statements(tracing::log::LevelFilter::Trace)
+    }
+}
+
+#[derive(Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub authorization_token: SecretString,
+    pub timeout_milliseconds: u64,
+}
+
+impl EmailClientSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::try_from(self.sender_email.to_owned())
+    }
+
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_milliseconds)
     }
 }
