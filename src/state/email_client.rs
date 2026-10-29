@@ -82,7 +82,7 @@ struct SendEmailRequest<'a> {
 mod tests {
     use std::time::Duration;
 
-    use claim::{assert_err, assert_ok};
+    use claims::{assert_err, assert_ok};
     use fake::{
         Fake, Faker,
         faker::{internet::en::SafeEmail, lorem::en::Sentence},
