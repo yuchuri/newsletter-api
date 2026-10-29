@@ -1,14 +1,16 @@
 use std::time::Duration;
 
+use axum::{Router, body::Body, http::Request, response::Response};
 use newsletter_api::{
     configuration, routes,
     state::{AppState, EmailClient},
     telemetry,
 };
 use sqlx::PgPool;
+use tower::ServiceExt;
 
 pub struct TestApp {
-    pub app: axum::Router,
+    pub router: Router,
     #[allow(dead_code)]
     pub pool: PgPool,
 }
@@ -34,7 +36,23 @@ impl TestApp {
             pool: pool.clone(),
             email_client,
         };
-        let app = routes::create_route(state);
-        Self { app, pool }
+        let router = routes::create_route(state);
+        Self { router, pool }
+    }
+
+    #[allow(dead_code)]
+    pub async fn post_subscriptions(&self, body: &str) -> Response {
+        let request = Request::builder()
+            .uri("/subscriptions")
+            .method("POST")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(Body::from(body.to_string()))
+            .expect("Failed to build request");
+
+        self.router
+            .clone()
+            .oneshot(request)
+            .await
+            .expect("Failed to execute request")
     }
 }

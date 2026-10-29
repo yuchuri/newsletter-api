@@ -16,7 +16,7 @@ async fn health_check(pool: PgPool) {
         .expect("Failed to build request");
 
     let response = app
-        .app
+        .router
         .oneshot(request)
         .await
         .expect("Failed to execute request");
