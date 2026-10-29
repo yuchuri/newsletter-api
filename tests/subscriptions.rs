@@ -1,30 +1,8 @@
 mod common;
 
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-    response::Response,
-};
+use axum::http::StatusCode;
 use common::TestApp;
 use sqlx::PgPool;
-use tower::ServiceExt;
-
-impl TestApp {
-    async fn post_subscriptions(&self, body: &str) -> Response {
-        let request = Request::builder()
-            .uri("/subscriptions")
-            .method("POST")
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(Body::from(body.to_string()))
-            .expect("Failed to build request");
-
-        self.app
-            .clone()
-            .oneshot(request)
-            .await
-            .expect("Failed to execute request")
-    }
-}
 
 #[sqlx::test]
 async fn subscribe_returns_a_200_for_valid_from_data(pool: PgPool) {
