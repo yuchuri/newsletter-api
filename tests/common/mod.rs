@@ -8,16 +8,22 @@ use newsletter_api::{
 };
 use sqlx::PgPool;
 use tower::ServiceExt;
+use wiremock::MockServer;
 
 pub struct TestApp {
     pub router: Router,
     #[allow(dead_code)]
     pub pool: PgPool,
+    #[allow(dead_code)]
+    pub email_server: MockServer,
 }
 
 impl TestApp {
-    pub fn new(pool: PgPool) -> Self {
+    pub async fn new(pool: PgPool) -> Self {
         telemetry::init_test();
+
+        let email_server = MockServer::start().await;
+
         let configuration = configuration::get().expect("Failed to read configuration.");
 
         let sender_email = configuration
@@ -26,7 +32,7 @@ impl TestApp {
             .expect("Invalid sender email address");
 
         let email_client = EmailClient::new(
-            configuration.email_client.base_url,
+            email_server.uri(),
             sender_email,
             configuration.email_client.authorization_token,
             Duration::from_millis(200),
@@ -37,7 +43,11 @@ impl TestApp {
             email_client,
         };
         let router = routes::create_route(state);
-        Self { router, pool }
+        Self {
+            router,
+            pool,
+            email_server,
+        }
     }
 
     #[allow(dead_code)]
