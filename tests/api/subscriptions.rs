@@ -1,10 +1,8 @@
-mod common;
-
 use axum::http::StatusCode;
-use common::TestApp;
-use linkify::{LinkFinder, LinkKind};
 use sqlx::PgPool;
 use wiremock::{Mock, matchers};
+
+use crate::helpers::TestApp;
 
 #[sqlx::test]
 async fn subscribe_returns_a_200_for_valid_from_data(pool: PgPool) {
@@ -18,7 +16,7 @@ async fn subscribe_returns_a_200_for_valid_from_data(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    let response = app.post_subscriptions(body).await;
+    let response = app.post("/subscriptions", body).await;
 
     assert_eq!(response.status(), StatusCode::OK);
 }
@@ -35,7 +33,7 @@ async fn subscribe_persists_the_new_subscriber(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body).await;
+    app.post("/subscriptions", body).await;
 
     let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
         .fetch_one(&app.pool)
@@ -58,7 +56,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_subscriptions(invalid_body).await;
+        let response = app.post("/subscriptions", invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -79,7 +77,7 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPoo
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_subscriptions(invalid_body).await;
+        let response = app.post("/subscriptions", invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -101,7 +99,7 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body).await;
+    app.post("/subscriptions", body).await;
 }
 
 #[sqlx::test]
@@ -116,22 +114,13 @@ async fn subscribe_sends_a_confirmation_email_with_a_link(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    app.post_subscriptions(body).await;
+    app.post("/subscriptions", body).await;
 
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
-    let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+    let confirmation_links = app.get_confirmation_links(email_request);
 
-    let get_link = |s: &str| {
-        let links: Vec<_> = LinkFinder::new()
-            .links(s)
-            .filter(|l| *l.kind() == LinkKind::Url)
-            .collect();
-        assert_eq!(links.len(), 1);
-        links[0].as_str().to_owned()
-    };
-
-    let html_link = get_link(body["HtmlBody"].as_str().unwrap());
-    let text_link = get_link(body["TextBody"].as_str().unwrap());
-
-    assert_eq!(html_link, text_link, "The two links should be identical");
+    assert_eq!(
+        confirmation_links.html, confirmation_links.plain_text,
+        "The two links should be identical"
+    );
 }

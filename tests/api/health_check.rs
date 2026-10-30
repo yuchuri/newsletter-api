@@ -1,9 +1,8 @@
-mod common;
-
 use axum::{body::Body, http::Request};
-use common::TestApp;
 use sqlx::PgPool;
 use tower::ServiceExt;
+
+use crate::helpers::TestApp;
 
 #[sqlx::test]
 async fn health_check(pool: PgPool) {
