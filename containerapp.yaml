@@ -26,6 +26,8 @@ properties:
         env:
           - name: APP_ENVIRONMENT
             value: "production"
+          - name: APP_APPLICATION__BASE_URL
+            value: "${APP_URL}"
           - name: APP_DATABASE__HOST
             value: "${DB_HOST}.postgres.database.azure.com"
           - name: APP_DATABASE__PORT

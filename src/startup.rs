@@ -3,14 +3,25 @@ use std::io;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::net::TcpListener;
 
+use crate::state::ApplicationBaseUrl;
+
 use super::{
     configuration::Settings,
     routes,
     state::{AppState, EmailClient},
 };
 
-pub async fn run(listener: TcpListener, pool: PgPool, email_client: EmailClient) -> io::Result<()> {
-    let state = AppState { pool, email_client };
+pub async fn run(
+    listener: TcpListener,
+    pool: PgPool,
+    email_client: EmailClient,
+    base_url: ApplicationBaseUrl,
+) -> io::Result<()> {
+    let state = AppState {
+        pool,
+        email_client,
+        base_url,
+    };
     let app = routes::create_route(state);
 
     axum::serve(listener, app).await
@@ -34,6 +45,8 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
         timeout,
     );
 
+    let base_url = ApplicationBaseUrl::new(configuration.application.base_url);
+
     let address = format!(
         "{}:{}",
         configuration.application.host, configuration.application.port
@@ -41,5 +54,5 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
 
     let listener = TcpListener::bind(address).await?;
 
-    run(listener, configuration_pool, email_client).await
+    run(listener, configuration_pool, email_client, base_url).await
 }
