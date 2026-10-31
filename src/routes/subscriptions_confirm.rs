@@ -4,7 +4,6 @@ use axum::{
 };
 use serde::Deserialize;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct ConfirmRequest {
@@ -16,51 +15,32 @@ pub async fn confirm(
     State(pool): State<PgPool>,
     Query(request): Query<ConfirmRequest>,
 ) -> StatusCode {
-    let Ok(subscriber_id) = get_subscriber_id_from_token(&pool, &request.subscription_token).await
-    else {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    };
-
-    if let Some(subscriber_id) = subscriber_id {
-        if confirm_subscriber(&pool, subscriber_id).await.is_ok() {
-            StatusCode::OK
-        } else {
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    } else {
-        StatusCode::UNAUTHORIZED
+    match confirm_subscriber(&pool, &request.subscription_token).await {
+        Ok(true) => StatusCode::OK,
+        Ok(false) => StatusCode::UNAUTHORIZED,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
-#[tracing::instrument(name = "Mark subscriber as confirmed", skip(pool, subscription_id))]
-async fn confirm_subscriber(pool: &PgPool, subscription_id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+#[tracing::instrument(name = "Confirm subscriber", skip(pool, subscription_token))]
+async fn confirm_subscriber(pool: &PgPool, subscription_token: &str) -> Result<bool, sqlx::Error> {
+    let confirmed_subscriber = sqlx::query_scalar!(
         r#"
-        update subscriptions
-        set status = 'confirmed'
-        where subscriber_id = $1
-        "#,
-        subscription_id
-    )
-    .execute(pool)
-    .await
-    .map_err(|err| {
-        tracing::error!("Failed to execute query: {err:?}");
-        err
-    })?;
-    Ok(())
-}
-
-#[tracing::instrument(name = "Get_subscriber_id from token", skip(pool, subscription_token))]
-async fn get_subscriber_id_from_token(
-    pool: &PgPool,
-    subscription_token: &str,
-) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar!(
-        r#"
-        select subscriber_id
-        from subscription_tokens
+        with confirmed as (
+            update subscriptions
+            set status = 'confirmed'
+            where subscriber_id = (
+                select subscriber_id
+                from subscription_tokens
+                where subscription_token = $1
+            )
+            and status = 'pending_confirmation'
+            returning subscriber_id
+        )
+        delete from subscription_tokens
         where subscription_token = $1
+        and subscriber_id in (select subscriber_id from confirmed)
+        returning subscriber_id
         "#,
         subscription_token,
     )
@@ -69,5 +49,6 @@ async fn get_subscriber_id_from_token(
     .map_err(|err| {
         tracing::error!("Failed to execute query: {err:?}");
         err
-    })
+    })?;
+    Ok(confirmed_subscriber.is_some())
 }

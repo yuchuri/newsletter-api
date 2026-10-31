@@ -58,3 +58,25 @@ async fn clicking_on_the_confirmation_link_confirms_a_subscriber(pool: PgPool) {
     assert_eq!(saved.name, "le guin");
     assert_eq!(saved.status, "confirmed");
 }
+
+#[sqlx::test]
+async fn confirmation_tokens_can_only_be_used_once(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(matchers::path("/email"))
+        .and(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    app.post("/subscriptions", body).await;
+    let email_request = &app.email_server.received_requests().await.unwrap()[0];
+    let confirmation_links = app.get_confirmation_links(email_request);
+
+    let first_response = app.get(confirmation_links.html.as_str()).await;
+    let second_response = app.get(confirmation_links.html.as_str()).await;
+
+    assert_eq!(first_response.status(), StatusCode::OK);
+    assert_eq!(second_response.status(), StatusCode::UNAUTHORIZED);
+}

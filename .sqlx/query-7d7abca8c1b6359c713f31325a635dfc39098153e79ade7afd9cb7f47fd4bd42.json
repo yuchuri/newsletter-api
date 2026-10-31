@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        with confirmed as (\n            update subscriptions\n            set status = 'confirmed'\n            where subscriber_id = (\n                select subscriber_id\n                from subscription_tokens\n                where subscription_token = $1\n            )\n            and status = 'pending_confirmation'\n            returning subscriber_id\n        )\n        delete from subscription_tokens\n        where subscription_token = $1\n        and subscriber_id in (select subscriber_id from confirmed)\n        returning subscriber_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subscriber_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "subscription_tokens",
+            "name": "subscriber_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7d7abca8c1b6359c713f31325a635dfc39098153e79ade7afd9cb7f47fd4bd42"
+}
