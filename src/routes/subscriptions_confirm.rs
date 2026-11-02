@@ -1,3 +1,4 @@
+use anyhow::Context;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -5,25 +6,27 @@ use axum::{
 use serde::Deserialize;
 use sqlx::PgPool;
 
+use crate::error::{ConfirmationError, ConfirmationResult};
+
 #[derive(Deserialize)]
 pub struct ConfirmRequest {
     subscription_token: String,
 }
 
-#[tracing::instrument(name = "Confirm a pending subscriber", skip(pool, request))]
+#[tracing::instrument(name = "Confirm a pending subscriber", skip_all, err(Debug))]
 pub async fn confirm(
     State(pool): State<PgPool>,
     Query(request): Query<ConfirmRequest>,
-) -> StatusCode {
-    match confirm_subscriber(&pool, &request.subscription_token).await {
-        Ok(true) => StatusCode::OK,
-        Ok(false) => StatusCode::UNAUTHORIZED,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
-    }
+) -> ConfirmationResult<StatusCode> {
+    confirm_subscriber(&pool, &request.subscription_token)
+        .await
+        .context("Failed to confirm the subscriber.")?
+        .then_some(StatusCode::OK)
+        .ok_or(ConfirmationError::UnknownTokenError)
 }
 
-#[tracing::instrument(name = "Confirm subscriber", skip(pool, subscription_token))]
-async fn confirm_subscriber(pool: &PgPool, subscription_token: &str) -> Result<bool, sqlx::Error> {
+#[tracing::instrument(name = "Confirm subscriber", skip_all)]
+async fn confirm_subscriber(pool: &PgPool, subscription_token: &str) -> sqlx::Result<bool> {
     let confirmed_subscriber = sqlx::query_scalar!(
         r#"
         with confirmed as (
@@ -45,10 +48,6 @@ async fn confirm_subscriber(pool: &PgPool, subscription_token: &str) -> Result<b
         subscription_token,
     )
     .fetch_optional(pool)
-    .await
-    .map_err(|err| {
-        tracing::error!("Failed to execute query: {err:?}");
-        err
-    })?;
+    .await?;
     Ok(confirmed_subscriber.is_some())
 }

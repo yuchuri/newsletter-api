@@ -42,7 +42,7 @@ impl EmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), reqwest::Error> {
+    ) -> reqwest::Result<()> {
         let url = format!("{}/email", self.inner.base_url);
         let request_body = SendEmailRequest {
             from: self.inner.sender.as_ref(),
