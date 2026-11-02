@@ -124,3 +124,18 @@ async fn subscribe_sends_a_confirmation_email_with_a_link(pool: PgPool) {
         "The two links should be identical"
     );
 }
+
+#[sqlx::test]
+async fn subscribe_fails_if_there_is_a_fatal_database_error(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    sqlx::query!("alter table subscriptions drop column email;")
+        .execute(&app.pool)
+        .await
+        .unwrap();
+
+    let response = app.post("/subscriptions", body).await;
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
