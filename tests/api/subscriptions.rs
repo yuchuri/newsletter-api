@@ -16,7 +16,7 @@ async fn subscribe_returns_a_200_for_valid_from_data(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    let response = app.post("/subscriptions", body).await;
+    let response = app.post_form("/subscriptions", body).await;
 
     assert_eq!(response.status(), StatusCode::OK);
 }
@@ -33,7 +33,7 @@ async fn subscribe_persists_the_new_subscriber(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    app.post("/subscriptions", body).await;
+    app.post_form("/subscriptions", body).await;
 
     let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
         .fetch_one(&app.pool)
@@ -56,7 +56,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post("/subscriptions", invalid_body).await;
+        let response = app.post_form("/subscriptions", invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -77,7 +77,7 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPoo
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post("/subscriptions", invalid_body).await;
+        let response = app.post_form("/subscriptions", invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -99,7 +99,7 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    app.post("/subscriptions", body).await;
+    app.post_form("/subscriptions", body).await;
 }
 
 #[sqlx::test]
@@ -114,7 +114,7 @@ async fn subscribe_sends_a_confirmation_email_with_a_link(pool: PgPool) {
         .mount(&app.email_server)
         .await;
 
-    app.post("/subscriptions", body).await;
+    app.post_form("/subscriptions", body).await;
 
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
     let confirmation_links = app.get_confirmation_links(email_request);
@@ -135,7 +135,7 @@ async fn subscribe_fails_if_there_is_a_fatal_database_error(pool: PgPool) {
         .await
         .unwrap();
 
-    let response = app.post("/subscriptions", body).await;
+    let response = app.post_form("/subscriptions", body).await;
 
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }

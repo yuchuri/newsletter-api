@@ -72,12 +72,29 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    pub async fn post(&self, uri: &str, body: &str) -> Response {
+    pub async fn post_form(&self, uri: &str, body: &str) -> Response {
         let request = Request::builder()
             .uri(uri)
             .method("POST")
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(Body::from(body.to_string()))
+            .expect("Failed to build request");
+
+        self.router
+            .clone()
+            .oneshot(request)
+            .await
+            .expect("Failed to execute request")
+    }
+
+    pub async fn post_json(&self, uri: &str, body: &serde_json::Value) -> Response {
+        let request = Request::builder()
+            .uri(uri)
+            .method("POST")
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_vec(body).expect("Failed to serialize JSON body"),
+            ))
             .expect("Failed to build request");
 
         self.router
