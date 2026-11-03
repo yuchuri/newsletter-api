@@ -4,9 +4,11 @@ use std::{
 };
 
 mod confirmation_error;
+mod publish_error;
 mod subscribe_error;
 
 pub use confirmation_error::*;
+pub use publish_error::*;
 pub use subscribe_error::*;
 
 fn error_chain_fmt(e: &impl Error, f: &mut Formatter<'_>) -> fmt::Result {
