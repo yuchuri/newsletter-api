@@ -1,11 +1,16 @@
 use std::fmt::Debug;
 
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::{
+    http::{HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
+};
 
 pub type PublishResult<T> = Result<T, PublishError>;
 
 #[derive(thiserror::Error)]
 pub enum PublishError {
+    #[error("Authentication failed")]
+    AuthError(#[source] anyhow::Error),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
@@ -17,12 +22,19 @@ impl Debug for PublishError {
 }
 
 impl IntoResponse for PublishError {
-    fn into_response(self) -> axum::response::Response {
+    fn into_response(self) -> Response {
         use PublishError::*;
 
         match self {
-            UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError(_) => (
+                StatusCode::UNAUTHORIZED,
+                [(
+                    header::WWW_AUTHENTICATE,
+                    HeaderValue::from_static(r#"Basic realm="publish""#),
+                )],
+            )
+                .into_response(),
+            UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
-        .into_response()
     }
 }
