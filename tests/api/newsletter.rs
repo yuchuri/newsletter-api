@@ -51,7 +51,9 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
         }
     });
 
-    let response = app.post_json("/newsletter", &newsletter_request_body).await;
+    let response = app
+        .post_json_with_auth("/newsletter", &newsletter_request_body)
+        .await;
 
     assert_eq!(response.status(), StatusCode::OK);
 }
@@ -76,7 +78,9 @@ async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
         }
     });
 
-    let response = app.post_json("/newsletter", &newsletter_request_body).await;
+    let response = app
+        .post_json_with_auth("/newsletter", &newsletter_request_body)
+        .await;
     assert_eq!(response.status(), StatusCode::OK)
 }
 
@@ -102,7 +106,9 @@ async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_json("/newsletter", &invalid_body).await;
+        let response = app
+            .post_json_with_auth("/newsletter", &invalid_body)
+            .await;
 
         assert_eq!(
             response.status(),
@@ -111,4 +117,24 @@ async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
             error_message
         );
     }
+}
+
+#[sqlx::test]
+async fn newsletters_missing_authorization_are_rejected(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "content": {
+            "text": "Newsletter body as plain text",
+            "html": "<p>Newsletter body as HTML</p>",
+        }
+    });
+
+    let response = app.post_json("/newsletter", &newsletter_request_body).await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        response.headers()["WWW-Authenticate"],
+        r#"Basic realm="publish""#
+    );
 }

@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use axum::{Router, body::Body, http::Request, response::Response};
+use base64::{Engine, engine::general_purpose};
 use linkify::{LinkFinder, LinkKind};
 use newsletter_api::{
     configuration, routes,
@@ -10,6 +11,7 @@ use newsletter_api::{
 use reqwest::Url;
 use sqlx::PgPool;
 use tower::ServiceExt;
+use uuid::Uuid;
 use wiremock::MockServer;
 
 pub struct TestApp {
@@ -51,6 +53,7 @@ impl TestApp {
             base_url,
         };
         let router = routes::create_route(state);
+        add_test_user(&pool).await;
         Self {
             router,
             pool,
@@ -104,6 +107,31 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
+    pub async fn post_json_with_auth(&self, uri: &str, body: &serde_json::Value) -> Response {
+        let (username, password) = self.test_user().await;
+        let request = Request::builder()
+            .uri(uri)
+            .method("POST")
+            .header("Content-Type", "application/json")
+            .header(
+                "Authorization",
+                format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(format!("{username}:{password}"))
+                ),
+            )
+            .body(Body::from(
+                serde_json::to_vec(body).expect("Failed to serialize JSON body"),
+            ))
+            .expect("Failed to build request");
+
+        self.router
+            .clone()
+            .oneshot(request)
+            .await
+            .expect("Failed to execute request")
+    }
+
     pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
         let body: serde_json::Value =
             serde_json::from_slice(&email_request.body).expect("Failed to parse request body");
@@ -125,4 +153,32 @@ impl TestApp {
 
         ConfirmationLinks { html, plain_text }
     }
+
+    pub async fn test_user(&self) -> (String, String) {
+        let row = sqlx::query!(
+            r#"
+            select username, password
+            from users
+            limit 1"#,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .expect("Failed to create test users.");
+
+        (row.username, row.password)
+    }
+}
+
+async fn add_test_user(pool: &PgPool) {
+    sqlx::query!(
+        r#"
+            insert into users (username, password)
+            values ($1, $2)
+            "#,
+        Uuid::now_v7().to_string(),
+        Uuid::now_v7().to_string(),
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create test users.");
 }
