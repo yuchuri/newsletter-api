@@ -3,7 +3,7 @@ use std::io;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::net::TcpListener;
 
-use crate::state::ApplicationBaseUrl;
+use crate::state::{ApplicationBaseUrl, DummyPasswordHash};
 
 use super::{
     configuration::Settings,
@@ -16,11 +16,13 @@ pub async fn run(
     pool: PgPool,
     email_client: EmailClient,
     base_url: ApplicationBaseUrl,
+    dummy_password_hash: DummyPasswordHash,
 ) -> io::Result<()> {
     let state = AppState {
         pool,
         email_client,
         base_url,
+        dummy_password_hash,
     };
     let app = routes::create_route(state);
 
@@ -47,6 +49,8 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
 
     let base_url = ApplicationBaseUrl::new(configuration.application.base_url);
 
+    let dummy_hash = DummyPasswordHash::generate();
+
     let address = format!(
         "{}:{}",
         configuration.application.host, configuration.application.port
@@ -54,5 +58,12 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
 
     let listener = TcpListener::bind(address).await?;
 
-    run(listener, configuration_pool, email_client, base_url).await
+    run(
+        listener,
+        configuration_pool,
+        email_client,
+        base_url,
+        dummy_hash,
+    )
+    .await
 }
