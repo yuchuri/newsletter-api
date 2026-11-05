@@ -1,23 +1,46 @@
-use std::time::Duration;
+use std::{env, io, sync::LazyLock, time::Duration};
 
+use argon2::{Argon2, PasswordHasher};
 use axum::{Router, body::Body, http::Request, response::Response};
 use base64::{Engine, engine::general_purpose};
 use linkify::{LinkFinder, LinkKind};
 use newsletter_api::{
     configuration, routes,
-    state::{AppState, ApplicationBaseUrl, EmailClient},
-    telemetry,
+    state::{AppState, ApplicationBaseUrl, DummyPasswordHash, EmailClient},
 };
 use reqwest::Url;
 use sqlx::PgPool;
 use tower::ServiceExt;
+use tracing_subscriber::{EnvFilter, fmt::writer::BoxMakeWriter};
 use uuid::Uuid;
 use wiremock::MockServer;
+
+static TRACING: LazyLock<()> = LazyLock::new(|| {
+    let writer = if env::var("TEST_LOG").is_ok() {
+        BoxMakeWriter::new(io::stdout)
+    } else {
+        BoxMakeWriter::new(io::sink)
+    };
+
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .pretty()
+        .with_writer(writer)
+        .init();
+});
 
 pub struct TestApp {
     pub router: Router,
     pub pool: PgPool,
     pub email_server: MockServer,
+    pub test_user: TestUser,
+}
+
+pub struct TestUser {
+    pub username: String,
+    pub password: String,
 }
 
 pub struct ConfirmationLinks {
@@ -27,7 +50,7 @@ pub struct ConfirmationLinks {
 
 impl TestApp {
     pub async fn new(pool: PgPool) -> Self {
-        telemetry::init_test();
+        LazyLock::force(&TRACING);
 
         let email_server = MockServer::start().await;
 
@@ -51,13 +74,15 @@ impl TestApp {
             pool: pool.clone(),
             email_client,
             base_url,
+            dummy_password_hash: DummyPasswordHash::generate(),
         };
         let router = routes::create_route(state);
-        add_test_user(&pool).await;
+        let test_user = TestUser::generate(&pool).await;
         Self {
             router,
             pool,
             email_server,
+            test_user,
         }
     }
 
@@ -66,13 +91,13 @@ impl TestApp {
             .uri(uri)
             .method("GET")
             .body(Body::empty())
-            .expect("Failed to build request");
+            .expect("Failed to build request.");
 
         self.router
             .clone()
             .oneshot(request)
             .await
-            .expect("Failed to execute request")
+            .expect("Failed to execute request,")
     }
 
     pub async fn post_form(&self, uri: &str, body: &str) -> Response {
@@ -81,34 +106,16 @@ impl TestApp {
             .method("POST")
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(Body::from(body.to_string()))
-            .expect("Failed to build request");
+            .expect("Failed to build request.");
 
         self.router
             .clone()
             .oneshot(request)
             .await
-            .expect("Failed to execute request")
-    }
-
-    pub async fn post_json(&self, uri: &str, body: &serde_json::Value) -> Response {
-        let request = Request::builder()
-            .uri(uri)
-            .method("POST")
-            .header("Content-Type", "application/json")
-            .body(Body::from(
-                serde_json::to_vec(body).expect("Failed to serialize JSON body"),
-            ))
-            .expect("Failed to build request");
-
-        self.router
-            .clone()
-            .oneshot(request)
-            .await
-            .expect("Failed to execute request")
+            .expect("Failed to execute request.")
     }
 
     pub async fn post_json_with_auth(&self, uri: &str, body: &serde_json::Value) -> Response {
-        let (username, password) = self.test_user().await;
         let request = Request::builder()
             .uri(uri)
             .method("POST")
@@ -117,19 +124,22 @@ impl TestApp {
                 "Authorization",
                 format!(
                     "Basic {}",
-                    general_purpose::STANDARD.encode(format!("{username}:{password}"))
+                    general_purpose::STANDARD.encode(format!(
+                        "{}:{}",
+                        self.test_user.username, self.test_user.password
+                    ))
                 ),
             )
             .body(Body::from(
                 serde_json::to_vec(body).expect("Failed to serialize JSON body"),
             ))
-            .expect("Failed to build request");
+            .expect("Failed to build request.");
 
         self.router
             .clone()
             .oneshot(request)
             .await
-            .expect("Failed to execute request")
+            .expect("Failed to execute request.")
     }
 
     pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
@@ -153,32 +163,27 @@ impl TestApp {
 
         ConfirmationLinks { html, plain_text }
     }
-
-    pub async fn test_user(&self) -> (String, String) {
-        let row = sqlx::query!(
-            r#"
-            select username, password
-            from users
-            limit 1"#,
-        )
-        .fetch_one(&self.pool)
-        .await
-        .expect("Failed to create test users.");
-
-        (row.username, row.password)
-    }
 }
 
-async fn add_test_user(pool: &PgPool) {
-    sqlx::query!(
-        r#"
-            insert into users (username, password)
+impl TestUser {
+    async fn generate(pool: &PgPool) -> Self {
+        let username = Uuid::now_v7().to_string();
+        let password = Uuid::now_v7().to_string();
+        let password_hash = Argon2::default()
+            .hash_password(password.as_bytes())
+            .expect("Failed to hash the password.")
+            .to_string();
+        sqlx::query!(
+            r#"
+            insert into users (username, password_hash)
             values ($1, $2)
             "#,
-        Uuid::now_v7().to_string(),
-        Uuid::now_v7().to_string(),
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create test users.");
+            username,
+            password_hash
+        )
+        .execute(pool)
+        .await
+        .expect("Failed to create test users.");
+        Self { username, password }
+    }
 }

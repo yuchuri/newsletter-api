@@ -1,5 +1,11 @@
-use axum::http::StatusCode;
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
+use base64::{Engine, engine::general_purpose};
 use sqlx::PgPool;
+use tower::ServiceExt;
+use uuid::Uuid;
 use wiremock::{Mock, ResponseTemplate, matchers};
 
 use crate::helpers::{ConfirmationLinks, TestApp};
@@ -106,9 +112,7 @@ async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app
-            .post_json_with_auth("/newsletter", &invalid_body)
-            .await;
+        let response = app.post_json_with_auth("/newsletter", &invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -130,11 +134,70 @@ async fn newsletters_missing_authorization_are_rejected(pool: PgPool) {
         }
     });
 
-    let response = app.post_json("/newsletter", &newsletter_request_body).await;
+    let request = Request::builder()
+        .method("POST")
+        .uri("/newsletter")
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&newsletter_request_body).expect("Failed to serialize newsletter"),
+        ))
+        .expect("Failed to build request.");
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("Failed to execute request.");
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         response.headers()["WWW-Authenticate"],
         r#"Basic realm="publish""#
     );
+}
+
+#[sqlx::test]
+async fn invalid_password_is_rejected(pool: PgPool) {
+    let app = TestApp::new(pool).await;
+    let username = &app.test_user.username;
+    // Random password
+    let password = Uuid::now_v7().to_string();
+    assert_ne!(app.test_user.password, password);
+
+    let request = Request::builder()
+        .uri("/newsletter")
+        .method("POST")
+        .header("Content-Type", "application/json")
+        .header(
+            "Authorization",
+            format!(
+                "Basic {}",
+                general_purpose::STANDARD.encode(format!("{}:{}", username, password))
+            ),
+        )
+        .body(Body::from(
+            serde_json::to_vec(&serde_json::json!({
+                "title": "Newsletter title",
+                "content": {
+                    "text": "Newsletter body as plain text",
+                    "html": "<p>Newsletter body as HTML</p>",
+                }
+            }))
+            .expect("Failed to serialize newsletter request."),
+        ))
+        .expect("Failed to build request.");
+
+    let response = app
+        .router
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("Failed to execute request.");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        response.headers()["WWW-Authenticate"],
+        r#"Basic realm="publish""#
+    )
 }
