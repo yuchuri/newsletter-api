@@ -9,11 +9,16 @@ argon2 = "0.6.0"
 axum = "0.8.9"
 base64 = "0.23.1"
 config = "0.15.27"
+hex = "0.4.3"
+hmac = "0.13.0"
+html-escape = "0.3.0"
+percent-encoding = "2.3.2"
 rand = { version = "0.10.3", features = ["std_rng"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde-aux = "4.7.0"
+sha2 = "0.11.1"
 sqlx = { version = "0.9.0", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "tls-rustls", "uuid"] }
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
