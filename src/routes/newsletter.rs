@@ -18,11 +18,11 @@ use crate::{
 #[derive(Deserialize)]
 pub struct PublishNewsletterRequest {
     title: String,
-    content: Content,
+    content: NewsletterContent,
 }
 
 #[derive(Deserialize)]
-pub struct Content {
+pub struct NewsletterContent {
     html: String,
     text: String,
 }
@@ -45,7 +45,7 @@ pub async fn publish_newsletter(
             AuthError::InvalidCredentialsError(_) => PublishError::AuthError(err.into()),
             AuthError::UnexpectedError(_) => PublishError::UnexpectedError(err.into()),
         })?;
-    tracing::Span::current().record("user_id", &tracing::field::display(user_id));
+    tracing::Span::current().record("user_id", tracing::field::display(user_id));
     let subscribers = get_confirmed_subscribers(&pool)
         .await
         .context("Failed to fetch confirmed subscribers")?;

@@ -14,15 +14,15 @@ use crate::{
 };
 
 #[derive(Deserialize)]
-pub struct SubscribeRequest {
+pub struct SubscribeForm {
     name: String,
     email: String,
 }
 
-impl TryFrom<SubscribeRequest> for NewSubscriber {
+impl TryFrom<SubscribeForm> for NewSubscriber {
     type Error = String;
 
-    fn try_from(value: SubscribeRequest) -> Result<Self, Self::Error> {
+    fn try_from(value: SubscribeForm) -> Result<Self, Self::Error> {
         let name = SubscriberName::try_from(value.name)?;
         let email = SubscriberEmail::try_from(value.email)?;
         Ok(NewSubscriber { name, email })
@@ -34,7 +34,7 @@ pub async fn subscribe(
     State(pool): State<PgPool>,
     State(email_client): State<EmailClient>,
     State(base_url): State<ApplicationBaseUrl>,
-    Form(request): Form<SubscribeRequest>,
+    Form(request): Form<SubscribeForm>,
 ) -> SubscribeResult<StatusCode> {
     let new_subscriber = request
         .try_into()

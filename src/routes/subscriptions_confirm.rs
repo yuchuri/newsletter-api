@@ -9,14 +9,14 @@ use sqlx::PgPool;
 use crate::error::{ConfirmationError, ConfirmationResult};
 
 #[derive(Deserialize)]
-pub struct ConfirmRequest {
+pub struct ConfirmQuery {
     subscription_token: String,
 }
 
 #[tracing::instrument(name = "Confirm a pending subscriber", skip_all, err(Debug))]
 pub async fn confirm(
     State(pool): State<PgPool>,
-    Query(request): Query<ConfirmRequest>,
+    Query(request): Query<ConfirmQuery>,
 ) -> ConfirmationResult<StatusCode> {
     confirm_subscriber(&pool, &request.subscription_token)
         .await
