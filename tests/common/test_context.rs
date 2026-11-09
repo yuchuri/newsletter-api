@@ -31,7 +31,7 @@ static TRACING: LazyLock<()> = LazyLock::new(|| {
         .init();
 });
 
-pub struct TestApp {
+pub struct TestContext {
     pub router: Router,
     pub pool: PgPool,
     pub email_server: MockServer,
@@ -48,7 +48,7 @@ pub struct ConfirmationLinks {
     pub plain_text: Url,
 }
 
-impl TestApp {
+impl TestContext {
     pub async fn new(pool: PgPool) -> Self {
         LazyLock::force(&TRACING);
 
@@ -56,7 +56,7 @@ impl TestApp {
 
         let configuration = configuration::get().expect("Failed to read configuration.");
 
-        let sender_email = configuration
+        let sender_email: newsletter_api::domain::SubscriberEmail = configuration
             .email_client
             .sender()
             .expect("Invalid sender email address");
@@ -91,19 +91,19 @@ impl TestApp {
         let request = Request::builder()
             .uri(uri)
             .method("GET")
-            .body(Body::empty())
+            .body(axum::body::Body::empty())
             .expect("Failed to build request.");
 
         self.router
             .clone()
             .oneshot(request)
             .await
-            .expect("Failed to execute request,")
+            .expect("Failed to execute request.")
     }
 
-    pub async fn post_form(&self, uri: &str, body: &str) -> Response {
+    pub async fn post_subscriptions(&self, body: &str) -> Response {
         let request = Request::builder()
-            .uri(uri)
+            .uri("/subscriptions")
             .method("POST")
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(Body::from(body.to_string()))
@@ -116,14 +116,14 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_json_with_auth(&self, uri: &str, body: &serde_json::Value) -> Response {
+    pub async fn post_newsletter(&self, body: serde_json::Value) -> Response {
         let request = Request::builder()
-            .uri(uri)
+            .uri("/newsletter")
             .method("POST")
             .header("Content-Type", "application/json")
             .header(
                 "Authorization",
-                format!(
+                &format!(
                     "Basic {}",
                     general_purpose::STANDARD.encode(format!(
                         "{}:{}",
@@ -132,7 +132,7 @@ impl TestApp {
                 ),
             )
             .body(Body::from(
-                serde_json::to_vec(body).expect("Failed to serialize JSON body"),
+                serde_json::to_vec(&body).expect("Failed to serialize newsletter"),
             ))
             .expect("Failed to build request.");
 

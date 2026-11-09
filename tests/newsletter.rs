@@ -1,3 +1,5 @@
+mod common;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -8,45 +10,45 @@ use tower::ServiceExt;
 use uuid::Uuid;
 use wiremock::{Mock, ResponseTemplate, matchers};
 
-use crate::helpers::{ConfirmationLinks, TestApp};
+use crate::common::{ConfirmationLinks, TestContext};
 
-async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
+async fn create_unconfirmed_subscriber(context: &TestContext) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     let _mock_guard = Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(1)
-        .mount_as_scoped(&app.email_server)
+        .mount_as_scoped(&context.email_server)
         .await;
 
-    let response = app.post_form("/subscriptions", body).await;
+    let response = context.post_subscriptions(body).await;
     assert_eq!(response.status(), StatusCode::OK);
-    let email_request = app
+    let email_request = context
         .email_server
         .received_requests()
         .await
         .unwrap()
         .pop()
         .unwrap();
-    app.get_confirmation_links(&email_request)
+    context.get_confirmation_links(&email_request)
 }
 
-async fn create_confirmed_subscriber(app: &TestApp) {
-    let confirmation_links = create_unconfirmed_subscriber(app).await;
-    let response = app.get(confirmation_links.html.as_str()).await;
+async fn create_confirmed_subscriber(context: &TestContext) {
+    let confirmation_links = create_unconfirmed_subscriber(context).await;
+    let response = context.get(confirmation_links.html.as_str()).await;
     assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[sqlx::test]
 async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
-    let app = TestApp::new(pool).await;
-    create_unconfirmed_subscriber(&app).await;
+    let context = TestContext::new(pool).await;
+    create_unconfirmed_subscriber(&context).await;
 
     Mock::given(matchers::any())
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(0)
-        .mount(&app.email_server)
+        .mount(&context.email_server)
         .await;
 
     let newsletter_request_body = serde_json::json!({
@@ -57,23 +59,21 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
         }
     });
 
-    let response = app
-        .post_json_with_auth("/newsletter", &newsletter_request_body)
-        .await;
+    let response = context.post_newsletter(newsletter_request_body).await;
 
     assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[sqlx::test]
 async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
-    let app = TestApp::new(pool).await;
-    create_confirmed_subscriber(&app).await;
+    let context = TestContext::new(pool).await;
+    create_confirmed_subscriber(&context).await;
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(ResponseTemplate::new(200))
         .expect(1)
-        .mount(&app.email_server)
+        .mount(&context.email_server)
         .await;
 
     let newsletter_request_body = serde_json::json!({
@@ -84,15 +84,13 @@ async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
         }
     });
 
-    let response = app
-        .post_json_with_auth("/newsletter", &newsletter_request_body)
-        .await;
+    let response = context.post_newsletter(newsletter_request_body).await;
     assert_eq!(response.status(), StatusCode::OK)
 }
 
 #[sqlx::test]
 async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let test_cases = vec![
         (
             serde_json::json!({
@@ -112,7 +110,7 @@ async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_json_with_auth("/newsletter", &invalid_body).await;
+        let response = context.post_newsletter(invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -125,7 +123,7 @@ async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
 
 #[sqlx::test]
 async fn newsletters_missing_authorization_are_rejected(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
         "content": {
@@ -135,15 +133,16 @@ async fn newsletters_missing_authorization_are_rejected(pool: PgPool) {
     });
 
     let request = Request::builder()
-        .method("POST")
         .uri("/newsletter")
+        .method("POST")
         .header("Content-Type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&newsletter_request_body).expect("Failed to serialize newsletter"),
+            serde_json::to_vec(&newsletter_request_body)
+                .expect("Failed to serialize newsletter request."),
         ))
         .expect("Failed to build request.");
 
-    let response = app
+    let response = context
         .router
         .clone()
         .oneshot(request)
@@ -159,11 +158,11 @@ async fn newsletters_missing_authorization_are_rejected(pool: PgPool) {
 
 #[sqlx::test]
 async fn invalid_password_is_rejected(pool: PgPool) {
-    let app = TestApp::new(pool).await;
-    let username = &app.test_user.username;
+    let context = TestContext::new(pool).await;
+    let username = &context.test_user.username;
     // Random password
     let password = Uuid::now_v7().to_string();
-    assert_ne!(app.test_user.password, password);
+    assert_ne!(context.test_user.password, password);
 
     let request = Request::builder()
         .uri("/newsletter")
@@ -188,7 +187,7 @@ async fn invalid_password_is_rejected(pool: PgPool) {
         ))
         .expect("Failed to build request.");
 
-    let response = app
+    let response = context
         .router
         .clone()
         .oneshot(request)

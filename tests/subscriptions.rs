@@ -1,42 +1,44 @@
+mod common;
+
 use axum::http::StatusCode;
 use sqlx::PgPool;
 use wiremock::{Mock, matchers};
 
-use crate::helpers::TestApp;
+use crate::common::TestContext;
 
 #[sqlx::test]
 async fn subscribe_returns_a_200_for_valid_from_data(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(1)
-        .mount(&app.email_server)
+        .mount(&context.email_server)
         .await;
 
-    let response = app.post_form("/subscriptions", body).await;
+    let response = context.post_subscriptions(body).await;
 
     assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[sqlx::test]
 async fn subscribe_persists_the_new_subscriber(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(1)
-        .mount(&app.email_server)
+        .mount(&context.email_server)
         .await;
 
-    app.post_form("/subscriptions", body).await;
+    context.post_subscriptions(body).await;
 
     let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
-        .fetch_one(&app.pool)
+        .fetch_one(&context.pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
@@ -47,7 +49,7 @@ async fn subscribe_persists_the_new_subscriber(pool: PgPool) {
 
 #[sqlx::test]
 async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
 
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
@@ -56,7 +58,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_form("/subscriptions", invalid_body).await;
+        let response = context.post_subscriptions(invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -68,7 +70,7 @@ async fn subscribe_returns_a_422_when_data_is_missing(pool: PgPool) {
 
 #[sqlx::test]
 async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
 
     let test_cases = vec![
         ("name=&email=ursula_le_guin%40gmail.com", "empty name"),
@@ -77,7 +79,7 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPoo
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = app.post_form("/subscriptions", invalid_body).await;
+        let response = context.post_subscriptions(invalid_body).await;
 
         assert_eq!(
             response.status(),
@@ -89,35 +91,35 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid(pool: PgPoo
 
 #[sqlx::test]
 async fn subscribe_sends_a_confirmation_email_for_valid_data(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(1)
-        .mount(&app.email_server)
+        .mount(&context.email_server)
         .await;
 
-    app.post_form("/subscriptions", body).await;
+    context.post_subscriptions(body).await;
 }
 
 #[sqlx::test]
 async fn subscribe_sends_a_confirmation_email_with_a_link(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(1)
-        .mount(&app.email_server)
+        .mount(&context.email_server)
         .await;
 
-    app.post_form("/subscriptions", body).await;
+    context.post_subscriptions(body).await;
 
-    let email_request = &app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = app.get_confirmation_links(email_request);
+    let email_request = &context.email_server.received_requests().await.unwrap()[0];
+    let confirmation_links = context.get_confirmation_links(email_request);
 
     assert_eq!(
         confirmation_links.html, confirmation_links.plain_text,
@@ -127,15 +129,15 @@ async fn subscribe_sends_a_confirmation_email_with_a_link(pool: PgPool) {
 
 #[sqlx::test]
 async fn subscribe_fails_if_there_is_a_fatal_database_error(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     sqlx::query!("alter table subscriptions drop column email;")
-        .execute(&app.pool)
+        .execute(&context.pool)
         .await
         .unwrap();
 
-    let response = app.post_form("/subscriptions", body).await;
+    let response = context.post_subscriptions(body).await;
 
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }

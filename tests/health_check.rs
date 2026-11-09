@@ -1,12 +1,14 @@
+mod common;
+
 use axum::{body::Body, http::Request};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-use crate::helpers::TestApp;
+use crate::common::TestContext;
 
 #[sqlx::test]
 async fn health_check(pool: PgPool) {
-    let app = TestApp::new(pool).await;
+    let context = TestContext::new(pool).await;
 
     let request = Request::builder()
         .uri("/health_check")
@@ -14,7 +16,7 @@ async fn health_check(pool: PgPool) {
         .body(Body::empty())
         .expect("Failed to build request");
 
-    let response = app
+    let response = context
         .router
         .oneshot(request)
         .await
