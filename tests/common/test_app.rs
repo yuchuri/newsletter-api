@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
-use reqwest::Client;
+use reqwest::{Client, Response, StatusCode, redirect::Policy};
+use serde::Serialize;
 use sqlx::PgPool;
 use tokio::{net::TcpListener, task::JoinHandle};
 
@@ -26,7 +27,11 @@ impl TestApp {
             axum::serve(listener, router).await.unwrap();
         });
 
-        let client = Client::builder().cookie_store(true).build().unwrap();
+        let client = Client::builder()
+            .cookie_store(true)
+            .redirect(Policy::none())
+            .build()
+            .unwrap();
 
         Self {
             context,
@@ -35,6 +40,39 @@ impl TestApp {
             server,
         }
     }
+
+    pub async fn post_login(&self, body: &impl Serialize) -> Response {
+        self.client
+            .post(format!("http://{}/login", self.address))
+            .form(body)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_login_html(&self) -> String {
+        self.client
+            .get(format!("http://{}/login", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+            .text()
+            .await
+            .unwrap()
+    }
+}
+
+pub fn assert_is_redirect_to(response: &Response, location: &str) {
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(
+        response
+            .headers()
+            .get("Location")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        location
+    );
 }
 
 impl Drop for TestApp {

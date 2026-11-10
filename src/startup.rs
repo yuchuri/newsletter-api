@@ -3,7 +3,7 @@ use std::io;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::net::TcpListener;
 
-use crate::state::{ApplicationBaseUrl, DummyPasswordHash, HmacSecret};
+use crate::state::{ApplicationBaseUrl, DummyPasswordHash};
 
 use super::{
     configuration::Settings,
@@ -17,17 +17,14 @@ pub async fn run(
     email_client: EmailClient,
     base_url: ApplicationBaseUrl,
     dummy_password_hash: DummyPasswordHash,
-    hmac_secret: HmacSecret,
 ) -> io::Result<()> {
     let state = AppState {
         pool,
         email_client,
         base_url,
         dummy_password_hash,
-        hmac_secret,
     };
     let app = routes::create_route(state);
-
     axum::serve(listener, app).await
 }
 
@@ -51,7 +48,6 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
 
     let base_url = ApplicationBaseUrl::new(configuration.application.base_url);
     let dummy_password_hash = DummyPasswordHash::generate();
-    let hmac_secret = HmacSecret::new(configuration.application.hmac_secret);
 
     let address = format!(
         "{}:{}",
@@ -66,7 +62,6 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
         email_client,
         base_url,
         dummy_password_hash,
-        hmac_secret,
     )
     .await
 }

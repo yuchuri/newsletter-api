@@ -4,20 +4,16 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use hmac::{Hmac, KeyInit, Mac};
-use percent_encoding::NON_ALPHANUMERIC;
-use secrecy::{ExposeSecret, SecretString};
+use axum_extra::extract::{CookieJar, cookie::Cookie};
+use secrecy::SecretString;
 use serde::Deserialize;
-use sha2::Sha256;
 use sqlx::PgPool;
 
 use crate::{
     authentication::{self, Credentials},
     error::{AuthError, LoginError},
-    state::{DummyPasswordHash, HmacSecret},
+    state::DummyPasswordHash,
 };
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Deserialize)]
 pub struct LoginForm {
@@ -29,7 +25,6 @@ pub struct LoginForm {
 pub async fn login(
     State(pool): State<PgPool>,
     State(dummy_password_hash): State<DummyPasswordHash>,
-    State(hmac_secret): State<HmacSecret>,
     Form(request): Form<LoginForm>,
 ) -> Response {
     let credentials = Credentials::new(request.username, request.password);
@@ -43,22 +38,11 @@ pub async fn login(
                 AuthError::InvalidCredentialsError(_) => LoginError::AuthError(e.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
             };
-            let query = format!(
-                "error={}",
-                percent_encoding::utf8_percent_encode(&e.to_string(), NON_ALPHANUMERIC)
-            );
-            let hmac_tag = {
-                let mut mac =
-                    HmacSha256::new_from_slice(hmac_secret.expose_secret().as_bytes()).unwrap();
-                mac.update(query.as_bytes());
-                hex::encode(mac.finalize().into_bytes())
-            };
-            let location = format!("/login?{}&tag={}", query, hmac_tag);
-            (
-                StatusCode::SEE_OTHER,
-                [(axum::http::header::LOCATION, location)],
-            )
-                .into_response()
+            let location = "/login";
+            let cookie = Cookie::build(("_flash", e.to_string())).build();
+
+            let jar = CookieJar::new().add(cookie);
+            (StatusCode::SEE_OTHER, [(header::LOCATION, location)], jar).into_response()
         }
     }
 }

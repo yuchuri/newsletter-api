@@ -6,7 +6,7 @@ use base64::{Engine, engine::general_purpose};
 use linkify::{LinkFinder, LinkKind};
 use newsletter_api::{
     configuration, routes,
-    state::{AppState, ApplicationBaseUrl, DummyPasswordHash, EmailClient, HmacSecret},
+    state::{AppState, ApplicationBaseUrl, DummyPasswordHash, EmailClient},
 };
 use reqwest::Url;
 use sqlx::PgPool;
@@ -75,8 +75,8 @@ impl TestContext {
             email_client,
             base_url,
             dummy_password_hash: DummyPasswordHash::generate(),
-            hmac_secret: HmacSecret::new(configuration.application.hmac_secret),
         };
+
         let router = routes::create_route(state);
         let test_user = TestUser::generate(&pool).await;
         Self {
