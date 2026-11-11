@@ -3,12 +3,14 @@ use std::{
     fmt::{self, Formatter},
 };
 
+mod app_error;
 mod auth_error;
 mod confirmation_error;
 mod login_error;
 mod publish_error;
 mod subscribe_error;
 
+pub use app_error::*;
 pub use auth_error::*;
 pub use confirmation_error::*;
 pub use login_error::*;

@@ -2,7 +2,11 @@ use base64::{Engine, engine::general_purpose};
 use secrecy::ExposeSecret;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::net::TcpListener;
-use tower_sessions::{MemoryStore, SessionManagerLayer, cookie::Key};
+use tower_sessions::{SessionManagerLayer, cookie::Key};
+use tower_sessions_redis_store::{
+    RedisStore,
+    fred::{clients::Pool, interfaces::ClientLike, types::config::Config},
+};
 
 use crate::state::{ApplicationBaseUrl, DummyPasswordHash};
 
@@ -19,6 +23,7 @@ pub async fn run(
     base_url: ApplicationBaseUrl,
     dummy_password_hash: DummyPasswordHash,
     session_key: Key,
+    redis_store: RedisStore<Pool>,
 ) -> anyhow::Result<()> {
     let state = AppState {
         pool,
@@ -27,7 +32,7 @@ pub async fn run(
         dummy_password_hash,
     };
     let app = routes::create_route(state).layer(
-        SessionManagerLayer::new(MemoryStore::default())
+        SessionManagerLayer::new(redis_store)
             .with_secure(false)
             .with_signed(session_key),
     );
@@ -61,6 +66,17 @@ pub async fn build(configuration: Settings) -> anyhow::Result<()> {
             .as_slice(),
     )?;
 
+    let redis_pool = Pool::new(
+        Config::from_url(configuration.redis_uri.expose_secret())?,
+        None,
+        None,
+        None,
+        6,
+    )?;
+    let _redis_connection = redis_pool.connect();
+    redis_pool.wait_for_connect().await?;
+    let redis_store = RedisStore::new(redis_pool);
+
     let address = format!(
         "{}:{}",
         configuration.application.host, configuration.application.port
@@ -75,6 +91,7 @@ pub async fn build(configuration: Settings) -> anyhow::Result<()> {
         base_url,
         dummy_password_hash,
         session_key,
+        redis_store,
     )
     .await
 }

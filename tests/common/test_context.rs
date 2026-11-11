@@ -12,7 +12,11 @@ use reqwest::Url;
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use tower::ServiceExt;
-use tower_sessions::{MemoryStore, SessionManagerLayer, cookie::Key};
+use tower_sessions::{SessionManagerLayer, cookie::Key};
+use tower_sessions_redis_store::{
+    RedisStore,
+    fred::{clients::Pool, interfaces::ClientLike, types::config::Config},
+};
 use tracing_subscriber::{EnvFilter, fmt::writer::BoxMakeWriter};
 use uuid::Uuid;
 use wiremock::MockServer;
@@ -79,6 +83,21 @@ impl TestContext {
         )
         .expect("Invalid application HMAC key size.");
 
+        let redis_pool = Pool::new(
+            Config::from_url(configuration.redis_uri.expose_secret()).expect("Invalid Redis URI."),
+            None,
+            None,
+            None,
+            6,
+        )
+        .expect("Failed to create Redis pool.");
+        let _redis_connection = redis_pool.connect();
+        redis_pool
+            .wait_for_connect()
+            .await
+            .expect("Failed to connect to Redis.");
+        let redis_store = RedisStore::new(redis_pool);
+
         let state = AppState {
             pool: pool.clone(),
             email_client,
@@ -87,7 +106,7 @@ impl TestContext {
         };
 
         let router = routes::create_route(state).layer(
-            SessionManagerLayer::new(MemoryStore::default())
+            SessionManagerLayer::new(redis_store)
                 .with_secure(false)
                 .with_signed(session_key),
         );

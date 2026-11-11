@@ -47,12 +47,31 @@ impl TestApp {
             .form(body)
             .send()
             .await
-            .unwrap()
+            .expect("Failed to execute request.")
     }
 
     pub async fn get_login_html(&self) -> String {
         self.client
             .get(format!("http://{}/login", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+            .text()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_admin_dashboard(&self) -> Response {
+        self.client
+            .get(format!("http://{}/admin/dashboard", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn get_admin_dashboard_html(&self) -> String {
+        self.client
+            .get(format!("http://{}/admin/dashboard", self.address))
             .send()
             .await
             .expect("Failed to execute request.")

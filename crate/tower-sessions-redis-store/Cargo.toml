@@ -1,0 +1,37 @@
+[package]
+name = "tower-sessions-redis-store"
+description = "Redis session store for `tower-sessions`."
+version = "0.16.0"
+edition = "2024"
+authors = ["Max Countryman <hello@maxcountryman.com>"]
+license = "MIT"
+homepage = "https://github.com/maxcountryman/tower-sessions-stores"
+keywords = ["axum", "sessions", "cookie", "tower", "redis"]
+categories = ["asynchronous", "network-programming", "web-programming"]
+repository = "https://github.com/maxcountryman/tower-sessions-stores"
+documentation = "https://docs.rs/tower-sessions-redis-store"
+readme = "README.md"
+publish = false
+
+[dependencies]
+async-trait = "0.1.92"
+fred = "10.1.0"
+rmp-serde = "1.3.1"
+thiserror = "2.0.21"
+time = "0.3.55"
+tower-sessions-core = "0.15.0"
+
+[dev-dependencies]
+axum = "0.8.9"
+serde = "1.0.229"
+tokio = { version = "1.54.1", features = ["full"] }
+tokio-test = "0.4.6"
+tower-sessions = "0.15.0"
+
+[features]
+# Enable `fred` TLS support via native-tls
+enable-native-tls = ["fred/enable-native-tls"]
+# Enable `fred` TLS support via rustls with the default crypto backend features
+enable-rustls = ["fred/enable-rustls"]
+# Enable the `openssl/vendored` feature
+vendored-openssl = ["fred/vendored-openssl"]

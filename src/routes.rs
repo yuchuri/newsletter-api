@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 
+mod admin;
 mod health_check;
 mod home;
 mod login;
@@ -12,6 +13,7 @@ mod newsletter;
 mod subscriptions;
 mod subscriptions_confirm;
 
+use admin::*;
 use health_check::*;
 use home::*;
 use login::*;
@@ -27,6 +29,7 @@ pub fn create_route(state: AppState) -> Router {
         .route("/subscriptions", routing::post(subscribe))
         .route("/subscriptions/confirm", routing::get(confirm))
         .route("/newsletter", routing::post(publish_newsletter))
+        .route("/admin/dashboard", routing::get(admin_dashboard))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 tracing::info_span!(
