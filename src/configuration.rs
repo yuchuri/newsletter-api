@@ -24,6 +24,7 @@ pub struct ApplicationSettings {
     pub port: u16,
     pub host: String,
     pub base_url: String,
+    pub hmac_secret: SecretString,
 }
 
 #[derive(Deserialize)]
@@ -38,6 +39,7 @@ pub struct DatabaseSettings {
 }
 
 pub fn get() -> Result<Settings, ConfigError> {
+    dotenvy::dotenv().ok();
     let base_path = env::current_dir().expect("Failed to determine the current directory");
     let configuration_directory = base_path.join("configuration");
 
@@ -46,7 +48,7 @@ pub fn get() -> Result<Settings, ConfigError> {
         .try_into()
         .expect("Failed to parse APP_ENVIRONMENT.");
     let environment_filename = format!("{}.yaml", environment.as_str());
-    let settings = Config::builder()
+    let mut builder = Config::builder()
         .add_source(config::File::from(
             configuration_directory.join("base.yaml"),
         ))
@@ -57,8 +59,13 @@ pub fn get() -> Result<Settings, ConfigError> {
             config::Environment::with_prefix("APP")
                 .prefix_separator("_")
                 .separator("__"),
-        )
-        .build()?;
+        );
+
+    if let Ok(hmac_secret) = env::var("HMAC_SECRET") {
+        builder = builder.set_override("application.hmac_secret", hmac_secret)?;
+    }
+
+    let settings = builder.build()?;
     settings.try_deserialize()
 }
 

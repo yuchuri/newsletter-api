@@ -1,4 +1,5 @@
 use axum::{Router, http::Request, routing};
+use axum_messages::MessagesManagerLayer;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
@@ -36,5 +37,6 @@ pub fn create_route(state: AppState) -> Router {
                 )
             }),
         )
+        .layer(MessagesManagerLayer)
         .with_state(state)
 }

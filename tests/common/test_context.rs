@@ -9,8 +9,10 @@ use newsletter_api::{
     state::{AppState, ApplicationBaseUrl, DummyPasswordHash, EmailClient},
 };
 use reqwest::Url;
+use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use tower::ServiceExt;
+use tower_sessions::{MemoryStore, SessionManagerLayer, cookie::Key};
 use tracing_subscriber::{EnvFilter, fmt::writer::BoxMakeWriter};
 use uuid::Uuid;
 use wiremock::MockServer;
@@ -69,6 +71,13 @@ impl TestContext {
         );
 
         let base_url = ApplicationBaseUrl::new(configuration.application.base_url);
+        let session_key = Key::try_from(
+            general_purpose::STANDARD
+                .decode(configuration.application.hmac_secret.expose_secret())
+                .expect("Invalid application HMAC secret.")
+                .as_slice(),
+        )
+        .expect("Invalid application HMAC key size.");
 
         let state = AppState {
             pool: pool.clone(),
@@ -77,7 +86,11 @@ impl TestContext {
             dummy_password_hash: DummyPasswordHash::generate(),
         };
 
-        let router = routes::create_route(state);
+        let router = routes::create_route(state).layer(
+            SessionManagerLayer::new(MemoryStore::default())
+                .with_secure(false)
+                .with_signed(session_key),
+        );
         let test_user = TestUser::generate(&pool).await;
         Self {
             router,

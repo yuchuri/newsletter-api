@@ -1,20 +1,17 @@
+use std::fmt::Write;
+
 use axum::response::Html;
-use axum_extra::extract::{CookieJar, cookie::Cookie};
+use axum_messages::{Level, Messages};
 
-pub async fn login_form(jar: CookieJar) -> (CookieJar, Html<String>) {
-    let error_html = match jar.get("_flash") {
-        Some(cookie) => format!(r#"<p><i>{}</i></p>"#, cookie.value()),
-        None => String::new(),
-    };
+pub async fn login_form(messages: Messages) -> Html<String> {
+    let mut error_html = String::new();
+    for message in messages.into_iter().filter(|m| m.level == Level::Error) {
+        writeln!(error_html, "<p><i>{}</i></p>", message.message).unwrap();
+    }
 
-    let jar = jar.remove(Cookie::from("_flash"));
-
-    (
-        jar,
-        Html(
-            include_str!("login.html")
-                .to_string()
-                .replace("{{ERROR}}", &error_html),
-        ),
+    Html(
+        include_str!("login.html")
+            .to_string()
+            .replace("{{ERROR}}", &error_html),
     )
 }

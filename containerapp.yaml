@@ -16,6 +16,8 @@ properties:
         value: "${ACR_PASSWORD}"
       - name: db-password
         value: "${DB_PASSWORD}"
+      - name: hmac-secret
+        value: "${HMAC_SECRET}"
   template:
     containers:
       - name: newsletter-api
@@ -28,6 +30,8 @@ properties:
             value: "production"
           - name: APP_APPLICATION__BASE_URL
             value: "${APP_URL}"
+          - name: APP_APPLICATION__HMAC_SECRET
+            secretRef: hmac-secret
           - name: APP_DATABASE__HOST
             value: "${DB_HOST}.postgres.database.azure.com"
           - name: APP_DATABASE__PORT

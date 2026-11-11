@@ -1,7 +1,8 @@
-use std::io;
-
+use base64::{Engine, engine::general_purpose};
+use secrecy::ExposeSecret;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tokio::net::TcpListener;
+use tower_sessions::{MemoryStore, SessionManagerLayer, cookie::Key};
 
 use crate::state::{ApplicationBaseUrl, DummyPasswordHash};
 
@@ -17,18 +18,24 @@ pub async fn run(
     email_client: EmailClient,
     base_url: ApplicationBaseUrl,
     dummy_password_hash: DummyPasswordHash,
-) -> io::Result<()> {
+    session_key: Key,
+) -> anyhow::Result<()> {
     let state = AppState {
         pool,
         email_client,
         base_url,
         dummy_password_hash,
     };
-    let app = routes::create_route(state);
-    axum::serve(listener, app).await
+    let app = routes::create_route(state).layer(
+        SessionManagerLayer::new(MemoryStore::default())
+            .with_secure(false)
+            .with_signed(session_key),
+    );
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
-pub async fn build(configuration: Settings) -> io::Result<()> {
+pub async fn build(configuration: Settings) -> anyhow::Result<()> {
     let configuration_pool = PgPoolOptions::new()
         .acquire_timeout(std::time::Duration::from_secs(2))
         .connect_lazy_with(configuration.database.connection_options());
@@ -48,6 +55,11 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
 
     let base_url = ApplicationBaseUrl::new(configuration.application.base_url);
     let dummy_password_hash = DummyPasswordHash::generate();
+    let session_key = Key::try_from(
+        general_purpose::STANDARD
+            .decode(configuration.application.hmac_secret.expose_secret())?
+            .as_slice(),
+    )?;
 
     let address = format!(
         "{}:{}",
@@ -62,6 +74,7 @@ pub async fn build(configuration: Settings) -> io::Result<()> {
         email_client,
         base_url,
         dummy_password_hash,
+        session_key,
     )
     .await
 }
