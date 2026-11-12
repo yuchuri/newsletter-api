@@ -33,9 +33,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:8.10.3
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
       DATABASE_URL: postgres://postgres:password@localhost:5432/newsletter
+      HMAC_SECRET: "E/jw5X6t5Jnb+9T6kqDh3eL3y9L0vQsOtAV8aUycJGrbErUYPKIYbH75ZLNlo3+pBob7N9pTCl8mBfXscA2ZXg=="
 
     steps:
       - name: Check out repository

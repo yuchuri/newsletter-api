@@ -59,3 +59,4 @@ wiremock = "0.6.5"
 [patch.crates-io]
 axum-messages = { path = "crate/axum-messages" }
 tower-sessions-redis-store = { path = "crate/tower-sessions-redis-store" }
+sqlx-sqlite = { git = "https://github.com/launchbadge/sqlx", branch = "main" }

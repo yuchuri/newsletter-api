@@ -1495,9 +1495,9 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "libsqlite3-sys"
-version = "0.37.0"
+version = "0.39.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f111c8c41e7c61a49cd34e44c7619462967221a6443b0ec299e0ac30cfb9b1"
+checksum = "14a5f01b87b92705d07b433c06f96cbc764637d81a0bffb5734ce17cf0f9a2b3"
 dependencies = [
  "pkg-config",
  "vcpkg",
@@ -2666,7 +2666,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "378620ccc25c62c89d8be1c819e76a88d59bdcc3304733330788948e619bfd71"
 dependencies = [
- "sqlx-core",
+ "sqlx-core 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sqlx-macros",
  "sqlx-mysql",
  "sqlx-postgres",
@@ -2711,6 +2711,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlx-core"
+version = "0.9.0"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#987b8c5a74b6da8b71da6b5549925a7f6e59aac9"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "cfg-if",
+ "crc",
+ "crossbeam-queue",
+ "either",
+ "event-listener",
+ "futures-core",
+ "futures-intrusive",
+ "futures-io",
+ "futures-util",
+ "hashbrown 0.16.1",
+ "hashlink",
+ "indexmap",
+ "log",
+ "memchr",
+ "percent-encoding",
+ "serde",
+ "sha2 0.11.1",
+ "smallvec",
+ "thiserror",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "sqlx-macros"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2718,7 +2749,7 @@ checksum = "bd2b84f2bc39a5705ef27ec785a11c934a41bbd4a24941e257927cddc26b60bf"
 dependencies = [
  "proc-macro2",
  "quote",
- "sqlx-core",
+ "sqlx-core 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sqlx-macros-core",
  "syn 2.0.119",
 ]
@@ -2739,7 +2770,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "sqlx-core",
+ "sqlx-core 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sqlx-mysql",
  "sqlx-postgres",
  "sqlx-sqlite",
@@ -2770,7 +2801,7 @@ dependencies = [
  "serde",
  "sha1",
  "sha2 0.11.1",
- "sqlx-core",
+ "sqlx-core 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "tracing",
  "uuid",
@@ -2804,7 +2835,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "smallvec",
- "sqlx-core",
+ "sqlx-core 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "stringprep",
  "thiserror",
  "tracing",
@@ -2815,8 +2846,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488e99c397a62007e4229aec669a179816339afc6d2620ca6fa420dbee2e982c"
+source = "git+https://github.com/launchbadge/sqlx?branch=main#987b8c5a74b6da8b71da6b5549925a7f6e59aac9"
 dependencies = [
  "atoi",
  "flume",
@@ -2830,7 +2860,7 @@ dependencies = [
  "log",
  "percent-encoding",
  "serde",
- "sqlx-core",
+ "sqlx-core 0.9.0 (git+https://github.com/launchbadge/sqlx?branch=main)",
  "thiserror",
  "tracing",
  "url",
@@ -2909,7 +2939,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
