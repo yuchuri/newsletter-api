@@ -30,6 +30,11 @@ pub fn create_route(state: AppState) -> Router {
         .route("/subscriptions/confirm", routing::get(confirm))
         .route("/newsletter", routing::post(publish_newsletter))
         .route("/admin/dashboard", routing::get(admin_dashboard))
+        .route("/admin/logout", routing::post(logout))
+        .route(
+            "/admin/password",
+            routing::get(change_password_form).post(change_password),
+        )
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 tracing::info_span!(

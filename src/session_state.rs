@@ -18,6 +18,10 @@ impl TypedSession {
     pub async fn get_user_id(&self) -> Result<Option<Uuid>, session::Error> {
         self.0.get::<Uuid>(Self::USER_ID_KEY).await
     }
+
+    pub async fn logout(&self) -> Result<(), session::Error> {
+        self.0.flush().await
+    }
 }
 
 impl<S> FromRequestParts<S> for TypedSession
@@ -26,13 +30,8 @@ where
 {
     type Rejection = <Session as FromRequestParts<S>>::Rejection;
 
-    fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
-        async {
-            let session = Session::from_request_parts(parts, state).await?;
-            Ok(TypedSession(session))
-        }
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let session = Session::from_request_parts(parts, state).await?;
+        Ok(TypedSession(session))
     }
 }

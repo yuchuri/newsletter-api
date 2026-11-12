@@ -1,12 +1,17 @@
 use std::fmt::Write;
 
 use axum::response::Html;
-use axum_messages::{Level, Messages};
+use axum_messages::Messages;
 
 pub async fn login_form(messages: Messages) -> Html<String> {
     let mut error_html = String::new();
-    for message in messages.into_iter().filter(|m| m.level == Level::Error) {
-        writeln!(error_html, "<p><i>{}</i></p>", message.message).unwrap();
+    for message in messages {
+        writeln!(
+            error_html,
+            "<p><i>{}</i></p>",
+            html_escape::encode_text(&message.message)
+        )
+        .unwrap();
     }
 
     Html(

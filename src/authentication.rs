@@ -1,5 +1,5 @@
 use anyhow::Context;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -86,4 +86,37 @@ pub fn verify_password_hash(
         )
         .context("Invalid password")
         .map_err(AuthError::InvalidCredentialsError)
+}
+
+#[tracing::instrument(name = "Change password", skip_all)]
+pub async fn change_password(
+    user_id: Uuid,
+    password: SecretString,
+    pool: &PgPool,
+) -> anyhow::Result<()> {
+    let password_hash = tokio::task::spawn_blocking(move || compute_password_hash(password))
+        .await?
+        .context("Failed to hash password")?;
+    sqlx::query!(
+        r#"
+        update users
+        set password_hash = $1
+        where user_id = $2
+        "#,
+        password_hash.expose_secret(),
+        user_id
+    )
+    .execute(pool)
+    .await
+    .context("Failed to change user's password in the database.")?;
+    Ok(())
+}
+
+fn compute_password_hash(password: SecretString) -> anyhow::Result<SecretString> {
+    Ok(SecretString::from(
+        Argon2::default()
+            .hash_password(password.expose_secret().as_bytes())
+            .context("Failed to hash password")?
+            .to_string(),
+    ))
 }

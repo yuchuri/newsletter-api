@@ -30,7 +30,7 @@ pub async fn admin_dashboard(
 }
 
 #[tracing::instrument(name = "Get username", skip(pool))]
-async fn get_username(user_id: Uuid, pool: &PgPool) -> anyhow::Result<String> {
+pub async fn get_username(user_id: Uuid, pool: &PgPool) -> anyhow::Result<String> {
     sqlx::query_scalar!(
         r#"
         select username

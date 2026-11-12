@@ -70,14 +70,36 @@ impl TestApp {
     }
 
     pub async fn get_admin_dashboard_html(&self) -> String {
+        self.get_admin_dashboard().await.text().await.unwrap()
+    }
+
+    pub async fn get_change_password(&self) -> Response {
         self.client
-            .get(format!("http://{}/admin/dashboard", self.address))
+            .get(format!("http://{}/admin/password", self.address))
             .send()
             .await
             .expect("Failed to execute request.")
-            .text()
+    }
+
+    pub async fn get_change_password_html(&self) -> String {
+        self.get_change_password().await.text().await.unwrap()
+    }
+
+    pub async fn post_change_password(&self, body: &impl Serialize) -> Response {
+        self.client
+            .post(format!("http://{}/admin/password", self.address))
+            .form(body)
+            .send()
             .await
-            .unwrap()
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_logout(&self) -> Response {
+        self.client
+            .post(format!("http://{}/admin/logout", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
     }
 }
 
