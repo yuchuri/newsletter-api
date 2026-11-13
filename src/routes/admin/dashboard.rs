@@ -8,19 +8,15 @@ use uuid::Uuid;
 
 use crate::{error::AppResult, session_state::TypedSession};
 
+#[tracing::instrument(name = "Admin dashboard", skip_all, err(Debug))]
 pub async fn admin_dashboard(
     session: TypedSession,
     State(pool): State<PgPool>,
 ) -> AppResult<Response> {
-    let user_name = if let Some(user_id) = session
-        .get_user_id()
-        .await
-        .context("Failed to retrieve user_id from session")?
-    {
-        get_username(user_id, &pool).await?
-    } else {
+    let Some(user_id) = session.get_user_id().await? else {
         return Ok(Redirect::to("/login").into_response());
     };
+    let user_name = get_username(user_id, &pool).await?;
 
     Ok(Html(
         include_str!("admin_dashboard.html")

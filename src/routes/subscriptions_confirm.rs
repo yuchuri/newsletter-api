@@ -6,23 +6,23 @@ use axum::{
 use serde::Deserialize;
 use sqlx::PgPool;
 
-use crate::error::{ConfirmationError, ConfirmationResult};
+use crate::error::{AppError, AppResult};
 
 #[derive(Deserialize)]
 pub struct ConfirmQuery {
     subscription_token: String,
 }
 
-#[tracing::instrument(name = "Confirm a pending subscriber", skip_all, err(Debug))]
+#[tracing::instrument(name = "Confirm a pending subscriber", skip_all)]
 pub async fn confirm(
     State(pool): State<PgPool>,
     Query(request): Query<ConfirmQuery>,
-) -> ConfirmationResult<StatusCode> {
+) -> AppResult<StatusCode> {
     confirm_subscriber(&pool, &request.subscription_token)
         .await
         .context("Failed to confirm the subscriber.")?
         .then_some(StatusCode::OK)
-        .ok_or(ConfirmationError::UnknownTokenError)
+        .ok_or(AppError::UnknownToken)
 }
 
 #[tracing::instrument(name = "Confirm subscriber", skip_all)]

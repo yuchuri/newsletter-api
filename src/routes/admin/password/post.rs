@@ -1,4 +1,3 @@
-use anyhow::Context;
 use axum::{
     Form,
     extract::State,
@@ -24,6 +23,7 @@ pub struct ChangePasswordForm {
     pub new_password_check: SecretString,
 }
 
+#[tracing::instrument(name = "Change user password", skip_all)]
 pub async fn change_password(
     session: TypedSession,
     messages: Messages,
@@ -31,11 +31,7 @@ pub async fn change_password(
     State(dummy_password_hash): State<DummyPasswordHash>,
     Form(request): Form<ChangePasswordForm>,
 ) -> AppResult<Response> {
-    let Some(user_id) = session
-        .get_user_id()
-        .await
-        .context("Failed to retrieve user_id from session")?
-    else {
+    let Some(user_id) = session.get_user_id().await? else {
         return Ok(Redirect::to("/login").into_response());
     };
 
@@ -49,25 +45,21 @@ pub async fn change_password(
         return Ok(Redirect::to("/admin/password").into_response());
     }
 
-    let username = get_username(user_id, &pool)
-        .await
-        .context("Failed to retrieve username")?;
+    let username = get_username(user_id, &pool).await?;
     let credentials = Credentials::new(username, request.current_password);
     if let Err(err) =
         authentication::validate_credentials(credentials, &pool, &dummy_password_hash).await
     {
         return match err {
-            AuthError::InvalidCredentialsError(_) => {
+            AuthError::InvalidCredentials(_) => {
                 messages.error("The current password is incorrect.");
                 Ok(Redirect::to("/admin/password").into_response())
             }
-            AuthError::UnexpectedError(err) => Err(err.into()),
+            AuthError::Unexpected(err) => Err(err.into()),
         };
     }
 
-    authentication::change_password(user_id, request.new_password, &pool)
-        .await
-        .context("Failed to change password")?;
+    authentication::change_password(user_id, request.new_password, &pool).await?;
     messages.info("Your password has been changed.");
     Ok(Redirect::to("/admin/password").into_response())
 }

@@ -1,5 +1,5 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
-use tower_sessions::{Session, session};
+use tower_sessions::Session;
 use uuid::Uuid;
 
 pub struct TypedSession(Session);
@@ -7,20 +7,24 @@ pub struct TypedSession(Session);
 impl TypedSession {
     const USER_ID_KEY: &str = "user_id";
 
-    pub async fn cycle_id(&self) -> Result<(), session::Error> {
-        self.0.cycle_id().await
+    pub async fn cycle_id(&self) -> anyhow::Result<()> {
+        self.0.cycle_id().await?;
+        Ok(())
     }
 
-    pub async fn insert_user_id(&self, user_id: Uuid) -> Result<(), session::Error> {
-        self.0.insert(Self::USER_ID_KEY, user_id).await
+    pub async fn insert_user_id(&self, user_id: Uuid) -> anyhow::Result<()> {
+        self.0.insert(Self::USER_ID_KEY, user_id).await?;
+        Ok(())
     }
 
-    pub async fn get_user_id(&self) -> Result<Option<Uuid>, session::Error> {
-        self.0.get::<Uuid>(Self::USER_ID_KEY).await
+    pub async fn get_user_id(&self) -> anyhow::Result<Option<Uuid>> {
+        let user_id = self.0.get::<Uuid>(Self::USER_ID_KEY).await?;
+        Ok(user_id)
     }
 
-    pub async fn logout(&self) -> Result<(), session::Error> {
-        self.0.flush().await
+    pub async fn logout(&self) -> anyhow::Result<()> {
+        self.0.flush().await?;
+        Ok(())
     }
 }
 

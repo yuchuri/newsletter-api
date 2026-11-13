@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
-    error::{SubscribeError, SubscribeResult},
+    error::{AppError, AppResult},
     state::{ApplicationBaseUrl, EmailClient},
 };
 
@@ -29,16 +29,14 @@ impl TryFrom<SubscribeForm> for NewSubscriber {
     }
 }
 
-#[tracing::instrument(name = "Adding a new subscriber", skip_all, err(Debug))]
+#[tracing::instrument(name = "Adding a new subscriber", skip_all)]
 pub async fn subscribe(
     State(pool): State<PgPool>,
     State(email_client): State<EmailClient>,
     State(base_url): State<ApplicationBaseUrl>,
     Form(request): Form<SubscribeForm>,
-) -> SubscribeResult<StatusCode> {
-    let new_subscriber = request
-        .try_into()
-        .map_err(SubscribeError::ValidationError)?;
+) -> AppResult<StatusCode> {
+    let new_subscriber = request.try_into().map_err(AppError::Validation)?;
 
     let mut transaction = pool
         .begin()

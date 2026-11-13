@@ -14,9 +14,5 @@ pub async fn login_form(messages: Messages) -> Html<String> {
         .unwrap();
     }
 
-    Html(
-        include_str!("login.html")
-            .to_string()
-            .replace("{{ERROR}}", &error_html),
-    )
+    Html(include_str!("login.html").replace("{{ERROR}}", &error_html))
 }

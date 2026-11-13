@@ -1,28 +1,80 @@
-use std::{
-    error::Error,
-    fmt::{self, Formatter},
+use axum::{
+    http::{HeaderValue, StatusCode, header},
+    response::{IntoResponse, Redirect, Response},
 };
 
-mod app_error;
-mod auth_error;
-mod confirmation_error;
-mod login_error;
-mod publish_error;
-mod subscribe_error;
+pub type AuthResult<T> = Result<T, AuthError>;
+pub type AppResult<T> = Result<T, AppError>;
 
-pub use app_error::*;
-pub use auth_error::*;
-pub use confirmation_error::*;
-pub use login_error::*;
-pub use publish_error::*;
-pub use subscribe_error::*;
+#[derive(thiserror::Error, Debug)]
+pub enum AuthError {
+    #[error("Invalid credentials")]
+    InvalidCredentials(#[source] anyhow::Error),
 
-fn error_chain_fmt(e: &impl Error, f: &mut Formatter<'_>) -> fmt::Result {
-    writeln!(f, "{e}\n")?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{cause}")?;
-        current = cause.source();
+    #[error(transparent)]
+    Unexpected(#[from] anyhow::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AppError {
+    #[error("{0}")]
+    Validation(String),
+
+    #[error("There is no subscriber associated with the provided token.")]
+    UnknownToken,
+
+    #[error("Authentication failed")]
+    BasicAuth(#[source] anyhow::Error),
+
+    #[error("{0}")]
+    Redirect(#[source] Box<AppError>, Redirect),
+
+    #[error(transparent)]
+    Unexpected(#[from] anyhow::Error),
+}
+
+impl AppError {
+    pub fn redirect(self, location: &str) -> Self {
+        AppError::Redirect(Box::new(self), Redirect::to(location))
     }
-    Ok(())
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        use AppError::*;
+
+        match self {
+            Validation(_) => {
+                tracing::warn!("{self:?}");
+                StatusCode::BAD_REQUEST.into_response()
+            }
+
+            UnknownToken => {
+                tracing::warn!("{self:?}");
+                StatusCode::UNAUTHORIZED.into_response()
+            }
+
+            BasicAuth(_) => {
+                tracing::warn!("{self:?}");
+                (
+                    StatusCode::UNAUTHORIZED,
+                    [(
+                        header::WWW_AUTHENTICATE,
+                        HeaderValue::from_static(r#"Basic realm="publish""#),
+                    )],
+                )
+                    .into_response()
+            }
+
+            Redirect(err, redirect) => {
+                tracing::warn!("{err:?}");
+                redirect.into_response()
+            }
+
+            Unexpected(_) => {
+                tracing::error!("{self:?}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        }
+    }
 }

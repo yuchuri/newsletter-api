@@ -11,7 +11,7 @@ use sqlx::PgPool;
 use crate::{
     authentication::{self, Credentials},
     domain::SubscriberEmail,
-    error::{AuthError, PublishError, PublishResult},
+    error::{AppError, AppResult, AuthError},
     state::{DummyPasswordHash, EmailClient},
 };
 
@@ -37,13 +37,13 @@ pub async fn publish_newsletter(
     State(dummy_password_hash): State<DummyPasswordHash>,
     headers: HeaderMap,
     Json(request): Json<PublishNewsletterRequest>,
-) -> PublishResult<StatusCode> {
-    let credentials = basic_authentication(&headers).map_err(PublishError::AuthError)?;
+) -> AppResult<StatusCode> {
+    let credentials = basic_authentication(&headers).map_err(AppError::BasicAuth)?;
     let user_id = authentication::validate_credentials(credentials, &pool, &dummy_password_hash)
         .await
         .map_err(|err| match err {
-            AuthError::InvalidCredentialsError(_) => PublishError::AuthError(err.into()),
-            AuthError::UnexpectedError(_) => PublishError::UnexpectedError(err.into()),
+            AuthError::InvalidCredentials(_) => AppError::BasicAuth(err.into()),
+            AuthError::Unexpected(_) => AppError::Unexpected(err.into()),
         })?;
     tracing::Span::current().record("user_id", tracing::field::display(user_id));
     let subscribers = get_confirmed_subscribers(&pool)
@@ -89,7 +89,7 @@ fn basic_authentication(headers: &HeaderMap) -> anyhow::Result<Credentials> {
     let decoded_credentials = String::from_utf8(decoded_bytes)
         .context("The decoded credential string is not valid UTF8.")?;
 
-    // APlit into two segments, using ':' as delimitor
+    // Split into two segments, using ':' as delimiter
     let mut credentials = decoded_credentials.splitn(2, ':');
     let username = credentials
         .next()

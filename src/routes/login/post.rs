@@ -6,7 +6,7 @@ use sqlx::PgPool;
 
 use crate::{
     authentication::{self, Credentials},
-    error::{AuthError, LoginError, LoginResult},
+    error::{AppError, AppResult, AuthError},
     session_state::TypedSession,
     state::DummyPasswordHash,
 };
@@ -17,35 +17,27 @@ pub struct LoginForm {
     password: SecretString,
 }
 
-#[tracing::instrument(skip_all, fields(user_id=tracing::field::Empty))]
+#[tracing::instrument(name = "User login", skip_all, fields(user_id=tracing::field::Empty))]
 pub async fn login(
     messages: Messages,
     session: TypedSession,
     State(pool): State<PgPool>,
     State(dummy_password_hash): State<DummyPasswordHash>,
     Form(request): Form<LoginForm>,
-) -> LoginResult<Redirect> {
+) -> AppResult<Redirect> {
     let credentials = Credentials::new(request.username, request.password);
     let user_id = authentication::validate_credentials(credentials, &pool, &dummy_password_hash)
         .await
-        .map_err(|err| {
-            let err = match err {
-                AuthError::InvalidCredentialsError(_) => LoginError::AuthError(err.into()),
-                AuthError::UnexpectedError(_) => LoginError::UnexpectedError(err.into()),
-            };
-            messages.clone().error(err.to_string());
-            err
+        .map_err(|err| match err {
+            AuthError::Unexpected(_) => AppError::Unexpected(err.into()),
+            AuthError::InvalidCredentials(_) => {
+                let err = AppError::BasicAuth(err.into());
+                messages.error(err.to_string());
+                err.redirect("/login")
+            }
         })?;
     tracing::Span::current().record("user_id", tracing::field::display(user_id));
-    session.cycle_id().await.map_err(|err| {
-        let err = LoginError::UnexpectedError(err.into());
-        messages.clone().error(err.to_string());
-        err
-    })?;
-    session.insert_user_id(user_id).await.map_err(|err| {
-        let err = LoginError::UnexpectedError(err.into());
-        messages.clone().error(err.to_string());
-        err
-    })?;
+    session.cycle_id().await?;
+    session.insert_user_id(user_id).await?;
     Ok(Redirect::to("/admin/dashboard"))
 }

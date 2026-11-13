@@ -42,8 +42,7 @@ pub async fn validate_credentials(
     .await
     .context("Failed to spawn blocking task.")??;
 
-    user_id
-        .ok_or_else(|| AuthError::InvalidCredentialsError(anyhow::anyhow!("Invalid credentials")))
+    user_id.ok_or_else(|| AuthError::InvalidCredentials(anyhow::anyhow!("Invalid credentials")))
 }
 
 #[tracing::instrument(name = "Get stored credentials", skip_all)]
@@ -81,7 +80,7 @@ pub fn verify_password_hash(
             &expected_password_hash,
         )
         .context("Invalid password")
-        .map_err(AuthError::InvalidCredentialsError)
+        .map_err(AuthError::InvalidCredentials)
 }
 
 #[tracing::instrument(name = "Change password", skip_all)]
