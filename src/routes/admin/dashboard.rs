@@ -1,21 +1,19 @@
 use anyhow::Context;
 use axum::{
+    Extension,
     extract::State,
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Response},
 };
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{error::AppResult, session_state::TypedSession};
+use crate::{authentication::UserId, error::AppResult};
 
-#[tracing::instrument(name = "Admin dashboard", skip_all, err(Debug))]
 pub async fn admin_dashboard(
-    session: TypedSession,
+    Extension(user_id): Extension<UserId>,
     State(pool): State<PgPool>,
 ) -> AppResult<Response> {
-    let Some(user_id) = session.get_user_id().await? else {
-        return Ok(Redirect::to("/login").into_response());
-    };
+    let user_id = user_id.into_inner();
     let user_name = get_username(user_id, &pool).await?;
 
     Ok(Html(

@@ -1,9 +1,9 @@
-use axum::{Router, http::Request, routing};
+use axum::{Router, http::Request, middleware, routing};
 use axum_messages::MessagesManagerLayer;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::{authentication::reject_anonymous_users, state::AppState};
 
 mod admin;
 mod health_check;
@@ -21,7 +21,16 @@ use newsletter::*;
 use subscriptions::*;
 use subscriptions_confirm::*;
 
-pub fn create_route(state: AppState) -> Router {
+pub fn create_router(state: AppState) -> Router {
+    let admin_router = Router::new()
+        .route("/dashboard", routing::get(admin_dashboard))
+        .route("/logout", routing::post(logout))
+        .route(
+            "/password",
+            routing::get(change_password_form).post(change_password),
+        )
+        .route_layer(middleware::from_fn(reject_anonymous_users));
+
     Router::new()
         .route("/", routing::get(home))
         .route("/health_check", routing::get(health_check))
@@ -29,12 +38,7 @@ pub fn create_route(state: AppState) -> Router {
         .route("/subscriptions", routing::post(subscribe))
         .route("/subscriptions/confirm", routing::get(confirm))
         .route("/newsletter", routing::post(publish_newsletter))
-        .route("/admin/dashboard", routing::get(admin_dashboard))
-        .route("/admin/logout", routing::post(logout))
-        .route(
-            "/admin/password",
-            routing::get(change_password_form).post(change_password),
-        )
+        .nest("/admin", admin_router)
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 tracing::info_span!(

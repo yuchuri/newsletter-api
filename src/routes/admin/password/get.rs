@@ -1,18 +1,9 @@
 use std::fmt::Write;
 
-use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::response::Html;
 use axum_messages::Messages;
 
-use crate::{error::AppResult, session_state::TypedSession};
-
-pub async fn change_password_form(
-    session: TypedSession,
-    messages: Messages,
-) -> AppResult<Response> {
-    if session.get_user_id().await?.is_none() {
-        return Ok(Redirect::to("/login").into_response());
-    }
-
+pub async fn change_password_form(messages: Messages) -> Html<String> {
     let mut msg_html = String::new();
     for message in messages {
         writeln!(
@@ -22,8 +13,5 @@ pub async fn change_password_form(
         )
         .unwrap();
     }
-    Ok(
-        Html(include_str!("change_password.html").replace("{{MESSAGE}}", &msg_html))
-            .into_response(),
-    )
+    Html(include_str!("change_password.html").replace("{{MESSAGE}}", &msg_html))
 }

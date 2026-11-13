@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-        <title>Admin dashboard</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>Admin Dashboard</title>
     </head>
     <body>
         <p>Welcome {{USERNAME}}!</p>
         <p>Available actions:</p>
         <ol>
+            <li><a href="/admin/newsletter">Publish Newsletter</a></li>
             <li><a href="/admin/password">Change Password</a></li>
             <li>
                 <form name = "logoutForm" action = "/admin/logout" method="post">

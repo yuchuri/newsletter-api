@@ -1,5 +1,5 @@
 use axum::{
-    Form,
+    Extension, Form,
     extract::State,
     response::{IntoResponse, Redirect, Response},
 };
@@ -9,10 +9,9 @@ use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::{
-    authentication::{self, Credentials},
+    authentication::{self, Credentials, UserId},
     error::{AppResult, AuthError},
     routes::admin::dashboard::get_username,
-    session_state::TypedSession,
     state::DummyPasswordHash,
 };
 
@@ -25,15 +24,13 @@ pub struct ChangePasswordForm {
 
 #[tracing::instrument(name = "Change user password", skip_all)]
 pub async fn change_password(
-    session: TypedSession,
     messages: Messages,
+    Extension(user_id): Extension<UserId>,
     State(pool): State<PgPool>,
     State(dummy_password_hash): State<DummyPasswordHash>,
     Form(request): Form<ChangePasswordForm>,
 ) -> AppResult<Response> {
-    let Some(user_id) = session.get_user_id().await? else {
-        return Ok(Redirect::to("/login").into_response());
-    };
+    let user_id = user_id.into_inner();
 
     if request.new_password.expose_secret() != request.new_password_check.expose_secret() {
         messages.error("You entered two different new passwords - the field values must match.");

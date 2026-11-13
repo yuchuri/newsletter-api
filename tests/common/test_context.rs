@@ -105,7 +105,7 @@ impl TestContext {
             dummy_password_hash: DummyPasswordHash::generate(),
         };
 
-        let router = routes::create_route(state).layer(
+        let router = routes::create_router(state).layer(
             SessionManagerLayer::new(redis_store)
                 .with_secure(false)
                 .with_signed(session_key),

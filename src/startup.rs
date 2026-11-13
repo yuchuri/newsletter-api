@@ -31,7 +31,7 @@ pub async fn run(
         base_url,
         dummy_password_hash,
     };
-    let app = routes::create_route(state).layer(
+    let app = routes::create_router(state).layer(
         SessionManagerLayer::new(redis_store)
             .with_secure(false)
             .with_signed(session_key),
