@@ -10,7 +10,7 @@ pub fn init() {
         .init();
 }
 
-pub fn spawn_tracing_with_tracing<F, R>(f: F) -> JoinHandle<R>
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
 where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,

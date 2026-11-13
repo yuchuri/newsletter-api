@@ -28,10 +28,7 @@ pub async fn validate_credentials(
     dummy_password_hash: &DummyPasswordHash,
 ) -> AuthResult<Uuid> {
     let (user_id, expected_password_hash) =
-        match get_stored_credentials(&credentials.username, pool)
-            .await
-            .map_err(AuthError::UnexpectedError)?
-        {
+        match get_stored_credentials(&credentials.username, pool).await? {
             Some((user_id, password_hash)) => (Some(user_id), password_hash),
             None => (
                 None,
@@ -39,12 +36,11 @@ pub async fn validate_credentials(
             ),
         };
 
-    telemetry::spawn_tracing_with_tracing(move || {
+    telemetry::spawn_blocking_with_tracing(move || {
         verify_password_hash(expected_password_hash, credentials.password)
     })
     .await
-    .context("Invalid credentials")
-    .map_err(AuthError::InvalidCredentialsError)??;
+    .context("Failed to spawn blocking task.")??;
 
     user_id
         .ok_or_else(|| AuthError::InvalidCredentialsError(anyhow::anyhow!("Invalid credentials")))
@@ -76,13 +72,13 @@ pub fn verify_password_hash(
     expected_password_hash: SecretString,
     password_candidate: SecretString,
 ) -> AuthResult<()> {
-    let exprected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
+    let expected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
         .context("Failed to parse hash in PHC string format")?;
 
     Argon2::default()
         .verify_password(
             password_candidate.expose_secret().as_bytes(),
-            &exprected_password_hash,
+            &expected_password_hash,
         )
         .context("Invalid password")
         .map_err(AuthError::InvalidCredentialsError)
@@ -94,9 +90,10 @@ pub async fn change_password(
     password: SecretString,
     pool: &PgPool,
 ) -> anyhow::Result<()> {
-    let password_hash = tokio::task::spawn_blocking(move || compute_password_hash(password))
-        .await?
-        .context("Failed to hash password")?;
+    let password_hash =
+        telemetry::spawn_blocking_with_tracing(move || compute_password_hash(password))
+            .await?
+            .context("Failed to hash password")?;
     sqlx::query!(
         r#"
         update users
@@ -112,6 +109,7 @@ pub async fn change_password(
     Ok(())
 }
 
+#[tracing::instrument(name = "Compute password hash", skip_all)]
 fn compute_password_hash(password: SecretString) -> anyhow::Result<SecretString> {
     Ok(SecretString::from(
         Argon2::default()

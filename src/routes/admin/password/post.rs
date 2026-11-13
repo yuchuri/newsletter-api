@@ -44,9 +44,7 @@ pub async fn change_password(
         return Ok(Redirect::to("/admin/password").into_response());
     }
 
-    if request.new_password.expose_secret().len() < 12
-        || request.new_password.expose_secret().len() > 128
-    {
+    if !(12..=128).contains(&request.new_password.expose_secret().chars().count()) {
         messages.error("The new password must be between 12 and 128 characters long.");
         return Ok(Redirect::to("/admin/password").into_response());
     }
