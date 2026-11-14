@@ -1,5 +1,5 @@
 use axum::{
-    http::{HeaderValue, StatusCode, header},
+    http::StatusCode,
     response::{IntoResponse, Redirect, Response},
 };
 
@@ -24,7 +24,7 @@ pub enum AppError {
     UnknownToken,
 
     #[error("Authentication failed")]
-    BasicAuth(#[source] anyhow::Error),
+    InvalidAuthentication(#[source] anyhow::Error),
 
     #[error("{0}")]
     Redirect(#[source] Box<AppError>, Redirect),
@@ -54,16 +54,9 @@ impl IntoResponse for AppError {
                 StatusCode::UNAUTHORIZED.into_response()
             }
 
-            BasicAuth(_) => {
+            InvalidAuthentication(_) => {
                 tracing::warn!("{self:?}");
-                (
-                    StatusCode::UNAUTHORIZED,
-                    [(
-                        header::WWW_AUTHENTICATE,
-                        HeaderValue::from_static(r#"Basic realm="publish""#),
-                    )],
-                )
-                    .into_response()
+                StatusCode::UNAUTHORIZED.into_response()
             }
 
             Redirect(err, redirect) => {

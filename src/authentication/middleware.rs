@@ -48,7 +48,8 @@ pub async fn reject_anonymous_users(
             Ok(next.run(request).await)
         }
         None => {
-            let err = AppError::BasicAuth(anyhow::anyhow!("The user is not logged in."));
+            let err =
+                AppError::InvalidAuthentication(anyhow::anyhow!("The user is not logged in."));
             if let Some(messages) = request.extensions().get::<Messages>().cloned() {
                 messages.error(err.to_string());
             }

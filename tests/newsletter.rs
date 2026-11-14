@@ -1,16 +1,10 @@
 mod common;
 
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-};
-use base64::{Engine, engine::general_purpose};
+use axum::http::StatusCode;
 use sqlx::PgPool;
-use tower::ServiceExt;
-use uuid::Uuid;
 use wiremock::{Mock, ResponseTemplate, matchers};
 
-use crate::common::{ConfirmationLinks, TestContext};
+use crate::common::{ConfirmationLinks, TestApp, TestContext};
 
 async fn create_unconfirmed_subscriber(context: &TestContext) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -42,161 +36,83 @@ async fn create_confirmed_subscriber(context: &TestContext) {
 
 #[sqlx::test]
 async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
-    let context = TestContext::new(pool).await;
-    create_unconfirmed_subscriber(&context).await;
+    let app = TestApp::spawn(pool).await;
+    app.post_login(&serde_json::json!({
+        "username": app.context.test_user.username,
+        "password": app.context.test_user.password,
+    }))
+    .await;
+    create_unconfirmed_subscriber(&app.context).await;
 
     Mock::given(matchers::any())
         .respond_with(wiremock::ResponseTemplate::new(200))
         .expect(0)
-        .mount(&context.email_server)
+        .mount(&app.context.email_server)
         .await;
 
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
-        "content": {
-            "text": "Newsletter body as plain text",
-            "html": "<p>Newsletter body as HTML</p>",
-        }
+        "text_content": "Newsletter body as plain text",
+        "html_content": "<p>Newsletter body as HTML</p>",
     });
 
-    let response = context.post_newsletter(newsletter_request_body).await;
+    let response = app.post_publish_newsletter(newsletter_request_body).await;
+    common::assert_is_redirect_to(&response, "/admin/newsletter");
 
-    assert_eq!(response.status(), StatusCode::OK);
+    let html_page = app.get_publish_newsletter_html().await;
+    assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
 }
 
 #[sqlx::test]
 async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
-    let context = TestContext::new(pool).await;
-    create_confirmed_subscriber(&context).await;
+    let app = TestApp::spawn(pool).await;
+    app.post_login(&serde_json::json!({
+        "username": app.context.test_user.username,
+        "password": app.context.test_user.password,
+    }))
+    .await;
+    create_confirmed_subscriber(&app.context).await;
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
         .respond_with(ResponseTemplate::new(200))
         .expect(1)
-        .mount(&context.email_server)
+        .mount(&app.context.email_server)
         .await;
 
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
-        "content": {
-            "text": "Newsletter body as plain text",
-            "html": "<p>Newsletter body as HTML</p>",
-        }
+        "text_content": "Newsletter body as plain text",
+        "html_content": "<p>Newsletter body as HTML</p>",
     });
 
-    let response = context.post_newsletter(newsletter_request_body).await;
-    assert_eq!(response.status(), StatusCode::OK)
+    let response = app.post_publish_newsletter(newsletter_request_body).await;
+    common::assert_is_redirect_to(&response, "/admin/newsletter");
+
+    let html_page = app.get_publish_newsletter_html().await;
+    assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
 }
 
 #[sqlx::test]
-async fn newsletters_return_422_for_invalid_data(pool: PgPool) {
-    let context = TestContext::new(pool).await;
-    let test_cases = vec![
-        (
-            serde_json::json!({
-                "content": {
-                    "text": "Newsletter body as plain text",
-                    "html": "<p>Newsletter body as HTML</p>",
-                }
-            }),
-            "missing the title",
-        ),
-        (
-            serde_json::json!({
-                "title": "Newsletter!"
-            }),
-            "missing the content",
-        ),
-    ];
+async fn you_must_be_logged_in_to_see_the_publish_newsletter_form(pool: PgPool) {
+    let app = TestApp::spawn(pool).await;
 
-    for (invalid_body, error_message) in test_cases {
-        let response = context.post_newsletter(invalid_body).await;
+    let response = app.get_publish_newsletter().await;
 
-        assert_eq!(
-            response.status(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "The API did not fail with 400 Bad Request when the payload was {}.",
-            error_message
-        );
-    }
+    common::assert_is_redirect_to(&response, "/login");
 }
 
 #[sqlx::test]
-async fn newsletters_missing_authorization_are_rejected(pool: PgPool) {
-    let context = TestContext::new(pool).await;
+async fn you_must_be_logged_in_to_publish_a_newsletter(pool: PgPool) {
+    let app = TestApp::spawn(pool).await;
+
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
-        "content": {
-            "text": "Newsletter body as plain text",
-            "html": "<p>Newsletter body as HTML</p>",
-        }
+        "text_content": "Newsletter body as plain text",
+        "html_content": "<p>Newsletter body as HTML</p>",
     });
 
-    let request = Request::builder()
-        .uri("/newsletter")
-        .method("POST")
-        .header("Content-Type", "application/json")
-        .body(Body::from(
-            serde_json::to_vec(&newsletter_request_body)
-                .expect("Failed to serialize newsletter request."),
-        ))
-        .expect("Failed to build request.");
+    let response = app.post_publish_newsletter(newsletter_request_body).await;
 
-    let response = context
-        .router
-        .clone()
-        .oneshot(request)
-        .await
-        .expect("Failed to execute request.");
-
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(
-        response.headers()["WWW-Authenticate"],
-        r#"Basic realm="publish""#
-    );
-}
-
-#[sqlx::test]
-async fn invalid_password_is_rejected(pool: PgPool) {
-    let context = TestContext::new(pool).await;
-    let username = &context.test_user.username;
-    // Random password
-    let password = Uuid::now_v7().to_string();
-    assert_ne!(context.test_user.password, password);
-
-    let request = Request::builder()
-        .uri("/newsletter")
-        .method("POST")
-        .header("Content-Type", "application/json")
-        .header(
-            "Authorization",
-            format!(
-                "Basic {}",
-                general_purpose::STANDARD.encode(format!("{}:{}", username, password))
-            ),
-        )
-        .body(Body::from(
-            serde_json::to_vec(&serde_json::json!({
-                "title": "Newsletter title",
-                "content": {
-                    "text": "Newsletter body as plain text",
-                    "html": "<p>Newsletter body as HTML</p>",
-                }
-            }))
-            .expect("Failed to serialize newsletter request."),
-        ))
-        .expect("Failed to build request.");
-
-    let response = context
-        .router
-        .clone()
-        .oneshot(request)
-        .await
-        .expect("Failed to execute request.");
-
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(
-        response.headers()["WWW-Authenticate"],
-        r#"Basic realm="publish""#
-    )
+    common::assert_is_redirect_to(&response, "/login");
 }

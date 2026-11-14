@@ -9,7 +9,6 @@ mod admin;
 mod health_check;
 mod home;
 mod login;
-mod newsletter;
 mod subscriptions;
 mod subscriptions_confirm;
 
@@ -17,7 +16,6 @@ use admin::*;
 use health_check::*;
 use home::*;
 use login::*;
-use newsletter::*;
 use subscriptions::*;
 use subscriptions_confirm::*;
 
@@ -25,6 +23,10 @@ pub fn create_router(state: AppState) -> Router {
     let admin_router = Router::new()
         .route("/dashboard", routing::get(admin_dashboard))
         .route("/logout", routing::post(logout))
+        .route(
+            "/newsletter",
+            routing::get(publish_newsletter_form).post(publish_newsletter),
+        )
         .route(
             "/password",
             routing::get(change_password_form).post(change_password),
@@ -37,7 +39,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/login", routing::get(login_form).post(login))
         .route("/subscriptions", routing::post(subscribe))
         .route("/subscriptions/confirm", routing::get(confirm))
-        .route("/newsletter", routing::post(publish_newsletter))
         .nest("/admin", admin_router)
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {

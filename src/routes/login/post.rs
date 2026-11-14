@@ -31,7 +31,7 @@ pub async fn login(
         .map_err(|err| match err {
             AuthError::Unexpected(_) => AppError::Unexpected(err.into()),
             AuthError::InvalidCredentials(_) => {
-                let err = AppError::BasicAuth(err.into());
+                let err = AppError::InvalidAuthentication(err.into());
                 messages.error(err.to_string());
                 err.redirect("/login")
             }

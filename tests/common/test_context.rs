@@ -148,33 +148,6 @@ impl TestContext {
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_newsletter(&self, body: serde_json::Value) -> Response {
-        let request = Request::builder()
-            .uri("/newsletter")
-            .method("POST")
-            .header("Content-Type", "application/json")
-            .header(
-                "Authorization",
-                &format!(
-                    "Basic {}",
-                    general_purpose::STANDARD.encode(format!(
-                        "{}:{}",
-                        self.test_user.username, self.test_user.password
-                    ))
-                ),
-            )
-            .body(Body::from(
-                serde_json::to_vec(&body).expect("Failed to serialize newsletter"),
-            ))
-            .expect("Failed to build request.");
-
-        self.router
-            .clone()
-            .oneshot(request)
-            .await
-            .expect("Failed to execute request.")
-    }
-
     pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
         let body: serde_json::Value =
             serde_json::from_slice(&email_request.body).expect("Failed to parse request body");

@@ -1,4 +1,4 @@
-#![expect(dead_code, unused_imports)]
+#![allow(dead_code, unused_imports)]
 mod test_app;
 mod test_context;
 

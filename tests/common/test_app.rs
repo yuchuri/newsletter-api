@@ -101,6 +101,27 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    pub async fn post_publish_newsletter(&self, body: serde_json::Value) -> Response {
+        self.client
+            .post(format!("http://{}/admin/newsletter", self.address))
+            .form(&body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn get_publish_newsletter(&self) -> Response {
+        self.client
+            .get(format!("http://{}/admin/newsletter", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn get_publish_newsletter_html(&self) -> String {
+        self.get_publish_newsletter().await.text().await.unwrap()
+    }
 }
 
 pub fn assert_is_redirect_to(response: &Response, location: &str) {
