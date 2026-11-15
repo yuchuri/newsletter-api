@@ -2,6 +2,7 @@ mod common;
 
 use axum::http::StatusCode;
 use sqlx::PgPool;
+use uuid::Uuid;
 use wiremock::{Mock, ResponseTemplate, matchers};
 
 use crate::common::{ConfirmationLinks, TestApp, TestContext};
@@ -50,6 +51,7 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
         "title": "Newsletter title",
         "text_content": "Newsletter body as plain text",
         "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": Uuid::now_v7().to_string()
     });
 
     let response = app.post_publish_newsletter(&newsletter_request_body).await;
@@ -76,6 +78,7 @@ async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
         "title": "Newsletter title",
         "text_content": "Newsletter body as plain text",
         "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": Uuid::now_v7().to_string()
     });
 
     let response = app.post_publish_newsletter(&newsletter_request_body).await;
@@ -102,9 +105,42 @@ async fn you_must_be_logged_in_to_publish_a_newsletter(pool: PgPool) {
         "title": "Newsletter title",
         "text_content": "Newsletter body as plain text",
         "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": Uuid::now_v7().to_string()
     });
 
     let response = app.post_publish_newsletter(&newsletter_request_body).await;
 
     common::assert_is_redirect_to(&response, "/login");
+}
+
+#[sqlx::test]
+async fn newsletter_creation_is_idempotent(pool: PgPool) {
+    let app = TestApp::spawn(pool).await;
+    app.login().await;
+    create_confirmed_subscriber(&app.context).await;
+
+    Mock::given(matchers::path("/email"))
+        .and(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.context.email_server)
+        .await;
+
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "text_content": "Newsletter body as plain text",
+        "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": &Uuid::now_v7().to_string()
+    });
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
+    common::assert_is_redirect_to(&response, "/admin/newsletter");
+
+    let html_page = app.get_publish_newsletter_html().await;
+    assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
+
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
+    common::assert_is_redirect_to(&response, "/admin/newsletter");
+
+    let html_page = app.get_publish_newsletter_html().await;
+    assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
 }

@@ -29,6 +29,9 @@ pub enum AppError {
     #[error("{0}")]
     Redirect(#[source] Box<AppError>, Redirect),
 
+    #[error("{0}")]
+    BadRequest(#[source] anyhow::Error),
+
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
@@ -62,6 +65,11 @@ impl IntoResponse for AppError {
             Redirect(err, redirect) => {
                 tracing::warn!("{err:?}");
                 redirect.into_response()
+            }
+
+            BadRequest(_) => {
+                tracing::warn!("{self:?}");
+                StatusCode::BAD_REQUEST.into_response()
             }
 
             Unexpected(_) => {
