@@ -1,17 +1,20 @@
-use std::fmt::Write;
-
+use askama::Template;
 use axum::response::Html;
 use axum_messages::Messages;
 
+#[derive(Template)]
+#[template(path = "change_password.html")]
+struct ChangePasswordTemplate {
+    messages: Vec<String>,
+}
+
 pub async fn change_password_form(messages: Messages) -> Html<String> {
-    let mut msg_html = String::new();
-    for message in messages {
-        writeln!(
-            msg_html,
-            "<p><i>{}</i></p>",
-            html_escape::encode_text(&message.message)
-        )
-        .unwrap();
-    }
-    Html(include_str!("change_password.html").replace("{{MESSAGE}}", &msg_html))
+    let template = ChangePasswordTemplate {
+        messages: messages
+            .into_iter()
+            .map(|message| message.message)
+            .collect(),
+    };
+
+    Html(template.render().unwrap())
 }

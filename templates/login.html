@@ -7,7 +7,9 @@
         <title>Login</title>
     </head>
     <body>
-        {{ERROR}}
+        {% for message in messages %}
+            <p><i>{{ message }}</i></p>
+        {% endfor %}
         <form action="/login" method="post">
             <label>Username
                 <input type="text" placeholder="Enter username" name="username">

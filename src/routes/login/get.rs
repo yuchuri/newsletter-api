@@ -1,18 +1,20 @@
-use std::fmt::Write;
-
+use askama::Template;
 use axum::response::Html;
 use axum_messages::Messages;
 
-pub async fn login_form(messages: Messages) -> Html<String> {
-    let mut error_html = String::new();
-    for message in messages {
-        writeln!(
-            error_html,
-            "<p><i>{}</i></p>",
-            html_escape::encode_text(&message.message)
-        )
-        .unwrap();
-    }
+#[derive(Template)]
+#[template(path = "login.html")]
+struct LoginTemplate {
+    messages: Vec<String>,
+}
 
-    Html(include_str!("login.html").replace("{{ERROR}}", &error_html))
+pub async fn login_form(messages: Messages) -> Html<String> {
+    let template = LoginTemplate {
+        messages: messages
+            .into_iter()
+            .map(|message| message.message)
+            .collect(),
+    };
+
+    Html(template.render().unwrap())
 }

@@ -1,26 +1,28 @@
 use anyhow::Context;
-use axum::{
-    Extension,
-    extract::State,
-    response::{Html, IntoResponse, Response},
-};
+use askama::Template;
+use axum::{Extension, extract::State, response::Html};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{authentication::UserId, error::AppResult};
 
+#[derive(Template)]
+#[template(path = "admin_dashboard.html")]
+struct AdminDashboardTemplate {
+    username: String,
+}
+
 pub async fn admin_dashboard(
     Extension(user_id): Extension<UserId>,
     State(pool): State<PgPool>,
-) -> AppResult<Response> {
+) -> AppResult<Html<String>> {
     let user_id = user_id.into_inner();
     let user_name = get_username(user_id, &pool).await?;
 
-    Ok(Html(
-        include_str!("admin_dashboard.html")
-            .replace("{{USERNAME}}", &html_escape::encode_text(&user_name)),
-    )
-    .into_response())
+    let template = AdminDashboardTemplate {
+        username: user_name,
+    };
+    Ok(Html(template.render().unwrap()))
 }
 
 #[tracing::instrument(name = "Get username", skip(pool))]

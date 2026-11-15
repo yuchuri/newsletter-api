@@ -1,5 +1,5 @@
 use axum::response::Html;
 
 pub async fn home() -> Html<String> {
-    Html(include_str!("home/home.html").to_string())
+    Html(include_str!("../../templates/home.html").to_string())
 }
