@@ -37,12 +37,8 @@ async fn create_confirmed_subscriber(context: &TestContext) {
 #[sqlx::test]
 async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
     let app = TestApp::spawn(pool).await;
-    app.post_login(&serde_json::json!({
-        "username": app.context.test_user.username,
-        "password": app.context.test_user.password,
-    }))
-    .await;
     create_unconfirmed_subscriber(&app.context).await;
+    app.login().await;
 
     Mock::given(matchers::any())
         .respond_with(wiremock::ResponseTemplate::new(200))
@@ -56,7 +52,7 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
         "html_content": "<p>Newsletter body as HTML</p>",
     });
 
-    let response = app.post_publish_newsletter(newsletter_request_body).await;
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
     common::assert_is_redirect_to(&response, "/admin/newsletter");
 
     let html_page = app.get_publish_newsletter_html().await;
@@ -66,12 +62,8 @@ async fn newsletter_are_not_delivered_to_unconfirmed_subscribers(pool: PgPool) {
 #[sqlx::test]
 async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
     let app = TestApp::spawn(pool).await;
-    app.post_login(&serde_json::json!({
-        "username": app.context.test_user.username,
-        "password": app.context.test_user.password,
-    }))
-    .await;
     create_confirmed_subscriber(&app.context).await;
+    app.login().await;
 
     Mock::given(matchers::path("/email"))
         .and(matchers::method("POST"))
@@ -86,7 +78,7 @@ async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
         "html_content": "<p>Newsletter body as HTML</p>",
     });
 
-    let response = app.post_publish_newsletter(newsletter_request_body).await;
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
     common::assert_is_redirect_to(&response, "/admin/newsletter");
 
     let html_page = app.get_publish_newsletter_html().await;
@@ -112,7 +104,7 @@ async fn you_must_be_logged_in_to_publish_a_newsletter(pool: PgPool) {
         "html_content": "<p>Newsletter body as HTML</p>",
     });
 
-    let response = app.post_publish_newsletter(newsletter_request_body).await;
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
 
     common::assert_is_redirect_to(&response, "/login");
 }

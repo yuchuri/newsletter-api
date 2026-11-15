@@ -41,6 +41,14 @@ impl TestApp {
         }
     }
 
+    pub async fn login(&self) {
+        self.post_login(&serde_json::json!({
+            "username": self.context.test_user.username,
+            "password": self.context.test_user.password,
+        }))
+        .await;
+    }
+
     pub async fn post_login(&self, body: &impl Serialize) -> Response {
         self.client
             .post(format!("http://{}/login", self.address))
@@ -102,7 +110,7 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_publish_newsletter(&self, body: serde_json::Value) -> Response {
+    pub async fn post_publish_newsletter(&self, body: &serde_json::Value) -> Response {
         self.client
             .post(format!("http://{}/admin/newsletter", self.address))
             .form(&body)
