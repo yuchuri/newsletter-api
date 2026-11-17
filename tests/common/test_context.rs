@@ -5,7 +5,8 @@ use axum::{Router, body::Body, http::Request, response::Response};
 use base64::{Engine, engine::general_purpose};
 use linkify::{LinkFinder, LinkKind};
 use newsletter_api::{
-    configuration, routes,
+    configuration::{self, DatabaseSettings},
+    routes,
     state::{AppState, ApplicationBaseUrl, DummyPasswordHash, EmailClient},
 };
 use reqwest::Url;

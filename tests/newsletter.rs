@@ -1,23 +1,38 @@
 mod common;
 
 use axum::http::StatusCode;
+use fake::{
+    Fake,
+    faker::{internet::en::SafeEmail, name::en::Name},
+};
 use sqlx::PgPool;
 use uuid::Uuid;
-use wiremock::{Mock, ResponseTemplate, matchers};
+use wiremock::{Mock, MockBuilder, ResponseTemplate, matchers};
 
 use crate::common::{ConfirmationLinks, TestApp, TestContext};
 
-async fn create_unconfirmed_subscriber(context: &TestContext) -> ConfirmationLinks {
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+fn when_sending_an_email() -> MockBuilder {
+    Mock::given(matchers::path("/email")).and(matchers::method("POST"))
+}
 
-    let _mock_guard = Mock::given(matchers::path("/email"))
-        .and(matchers::method("POST"))
+async fn create_unconfirmed_subscriber(context: &TestContext) -> ConfirmationLinks {
+    let name: String = Name().fake();
+    let email: String = SafeEmail().fake();
+
+    let body = serde_urlencoded::to_string(serde_json::json!({
+        "name": name,
+        "email": email
+    }))
+    .unwrap();
+
+    let _mock_guard = when_sending_an_email()
         .respond_with(wiremock::ResponseTemplate::new(200))
+        .named("Create unconfirmed subscriber")
         .expect(1)
         .mount_as_scoped(&context.email_server)
         .await;
 
-    let response = context.post_subscriptions(body).await;
+    let response = context.post_subscriptions(&body).await;
     assert_eq!(response.status(), StatusCode::OK);
     let email_request = context
         .email_server
@@ -67,8 +82,7 @@ async fn newsletter_are_delivered_to_confirmed_subscribers(pool: PgPool) {
     create_confirmed_subscriber(&app.context).await;
     app.login().await;
 
-    Mock::given(matchers::path("/email"))
-        .and(matchers::method("POST"))
+    when_sending_an_email()
         .respond_with(ResponseTemplate::new(200))
         .expect(1)
         .mount(&app.context.email_server)
@@ -119,8 +133,7 @@ async fn newsletter_creation_is_idempotent(pool: PgPool) {
     app.login().await;
     create_confirmed_subscriber(&app.context).await;
 
-    Mock::given(matchers::path("/email"))
-        .and(matchers::method("POST"))
+    when_sending_an_email()
         .respond_with(ResponseTemplate::new(200))
         .expect(1)
         .mount(&app.context.email_server)
@@ -143,4 +156,75 @@ async fn newsletter_creation_is_idempotent(pool: PgPool) {
 
     let html_page = app.get_publish_newsletter_html().await;
     assert!(html_page.contains("<p><i>The newsletter issue has been published!</i></p>"));
+}
+
+#[sqlx::test]
+async fn concurrent_form_submission_is_handled_gracefully(pool: PgPool) {
+    let app = TestApp::spawn(pool).await;
+    app.login().await;
+    create_confirmed_subscriber(&app.context).await;
+
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.context.email_server)
+        .await;
+
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "text_content": "Newsletter body as plain text",
+        "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": Uuid::now_v7().to_string()
+    });
+
+    let response1 = app.post_publish_newsletter(&newsletter_request_body);
+    let response2 = app.post_publish_newsletter(&newsletter_request_body);
+    let (response1, response2) = tokio::join!(response1, response2);
+
+    assert_eq!(response1.status(), response2.status());
+    assert_eq!(
+        response1.text().await.unwrap(),
+        response2.text().await.unwrap()
+    );
+}
+
+#[sqlx::test]
+async fn transient_errors_do_not_cause_duplicate_deliveries_on_retries(pool: PgPool) {
+    let app = TestApp::spawn(pool).await;
+    app.login().await;
+    let newsletter_request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "text_content": "Newsletter body as plain text",
+        "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": Uuid::now_v7().to_string()
+    });
+
+    create_confirmed_subscriber(&app.context).await;
+    create_confirmed_subscriber(&app.context).await;
+
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&app.context.email_server)
+        .await;
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(500))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&app.context.email_server)
+        .await;
+
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .named("Delivery retry")
+        .mount(&app.context.email_server)
+        .await;
+
+    let response = app.post_publish_newsletter(&newsletter_request_body).await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
 }
