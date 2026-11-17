@@ -3,6 +3,7 @@ use axum_messages::Messages;
 use secrecy::SecretString;
 use serde::Deserialize;
 use sqlx::PgPool;
+use tracing::{Span, field};
 
 use crate::{
     authentication::{self, Credentials},
@@ -17,7 +18,7 @@ pub struct LoginForm {
     password: SecretString,
 }
 
-#[tracing::instrument(name = "User login", skip_all, fields(user_id=tracing::field::Empty))]
+#[tracing::instrument(name = "User login", skip_all, fields(user_id=field::Empty))]
 pub async fn login(
     messages: Messages,
     session: TypedSession,
@@ -36,7 +37,7 @@ pub async fn login(
                 err.redirect("/login")
             }
         })?;
-    tracing::Span::current().record("user_id", tracing::field::display(user_id));
+    Span::current().record("user_id", field::display(user_id));
     session.cycle_id().await?;
     session.insert_user_id(user_id).await?;
     Ok(Redirect::to("/admin/dashboard"))

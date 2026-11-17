@@ -2,6 +2,7 @@ use std::{fmt::Display, ops::Deref};
 
 use axum::{extract::Request, middleware::Next, response::Response};
 use axum_messages::Messages;
+use tracing::{Span, field};
 use uuid::Uuid;
 
 use crate::{
@@ -34,7 +35,7 @@ impl UserId {
 
 #[tracing::instrument(
     skip_all,
-    fields(user_id = tracing::field::Empty),
+    fields(user_id = field::Empty),
 )]
 pub async fn reject_anonymous_users(
     session: TypedSession,
@@ -43,7 +44,7 @@ pub async fn reject_anonymous_users(
 ) -> AppResult<Response> {
     match session.get_user_id().await? {
         Some(user_id) => {
-            tracing::Span::current().record("user_id", tracing::field::display(&user_id));
+            Span::current().record("user_id", field::display(&user_id));
             request.extensions_mut().insert(UserId(user_id));
             Ok(next.run(request).await)
         }

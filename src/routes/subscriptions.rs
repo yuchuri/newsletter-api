@@ -88,7 +88,7 @@ pub async fn send_confirmation_email(
 
 #[tracing::instrument(name = "Saving new subscriber details in the database", skip_all)]
 pub async fn insert_subscriber(
-    transaction: &mut PgConnection,
+    connection: &mut PgConnection,
     new_subscriber: &NewSubscriber,
 ) -> sqlx::Result<Uuid> {
     sqlx::query_scalar!(
@@ -100,16 +100,16 @@ pub async fn insert_subscriber(
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref()
     )
-    .fetch_one(transaction)
+    .fetch_one(connection)
     .await
 }
 
 #[tracing::instrument(
     name = "Store subscription token in the database",
-    skip(transaction, subscription_token)
+    skip(connection, subscription_token)
 )]
 pub async fn store_token(
-    transaction: &mut PgConnection,
+    connection: &mut PgConnection,
     subscriber_id: Uuid,
     subscription_token: &str,
 ) -> sqlx::Result<()> {
@@ -121,7 +121,7 @@ pub async fn store_token(
         subscription_token,
         subscriber_id,
     )
-    .execute(transaction)
+    .execute(connection)
     .await?;
     Ok(())
 }

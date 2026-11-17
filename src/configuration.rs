@@ -11,7 +11,7 @@ use sqlx::{
 
 use crate::domain::SubscriberEmail;
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
@@ -19,7 +19,7 @@ pub struct Settings {
     pub redis_uri: SecretString,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
@@ -28,7 +28,7 @@ pub struct ApplicationSettings {
     pub hmac_secret: SecretString,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct DatabaseSettings {
     pub username: String,
     pub password: SecretString,
@@ -117,7 +117,7 @@ impl DatabaseSettings {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
