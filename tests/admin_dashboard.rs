@@ -18,15 +18,15 @@ async fn logout_clears_session_state(pool: PgPool) {
     let app = TestApp::spawn(pool).await;
 
     let login_body = serde_json::json!({
-        "username": &app.context.test_user.username,
-        "password": &app.context.test_user.password
+        "username": &app.test_user.username,
+        "password": &app.test_user.password
     });
 
     let response = app.post_login(&login_body).await;
     common::assert_is_redirect_to(&response, "/admin/dashboard");
 
     let html_page = app.get_admin_dashboard_html().await;
-    assert!(html_page.contains(&format!("Welcome {}", app.context.test_user.username)));
+    assert!(html_page.contains(&format!("Welcome {}", app.test_user.username)));
 
     let response = app.post_logout().await;
     common::assert_is_redirect_to(&response, "/login");

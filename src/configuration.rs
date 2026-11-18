@@ -9,7 +9,7 @@ use sqlx::{
     postgres::{PgConnectOptions, PgSslMode},
 };
 
-use crate::domain::SubscriberEmail;
+use crate::{domain::SubscriberEmail, state::EmailClient};
 
 #[derive(Clone, Deserialize)]
 pub struct Settings {
@@ -37,6 +37,15 @@ pub struct DatabaseSettings {
     pub host: String,
     pub database_name: String,
     pub require_ssl: bool,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub authorization_token: SecretString,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub timeout_milliseconds: u64,
 }
 
 pub fn get() -> Result<Settings, ConfigError> {
@@ -117,20 +126,23 @@ impl DatabaseSettings {
     }
 }
 
-#[derive(Clone, Deserialize)]
-pub struct EmailClientSettings {
-    pub base_url: String,
-    pub sender_email: String,
-    pub authorization_token: SecretString,
-    pub timeout_milliseconds: u64,
-}
-
 impl EmailClientSettings {
-    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+    pub fn client(self) -> EmailClient {
+        let sender_email = self.sender().expect("Invalid sender email address");
+        let timeout = self.timeout();
+        EmailClient::new(
+            self.base_url,
+            sender_email,
+            self.authorization_token,
+            timeout,
+        )
+    }
+
+    fn sender(&self) -> Result<SubscriberEmail, String> {
         SubscriberEmail::try_from(self.sender_email.to_owned())
     }
 
-    pub fn timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         Duration::from_millis(self.timeout_milliseconds)
     }
 }

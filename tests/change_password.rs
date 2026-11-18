@@ -37,7 +37,7 @@ async fn new_password_fields_must_match(pool: PgPool) {
 
     let response = app
         .post_change_password(&serde_json::json!({
-            "current_password": &app.context.test_user.username,
+            "current_password": &app.test_user.password,
             "new_password": Uuid::now_v7(),
             "new_password_check": Uuid::now_v7(),
         }))
@@ -79,7 +79,7 @@ async fn new_password_must_be_at_least_12_characters_long(pool: PgPool) {
 
     let response = app
         .post_change_password(&serde_json::json!({
-            "current_password": &app.context.test_user.password,
+            "current_password": &app.test_user.password,
             "new_password": "short",
             "new_password_check": "short",
         }))
@@ -102,7 +102,7 @@ async fn new_password_must_be_at_most_128_characters_long(pool: PgPool) {
     let new_password = "a".repeat(129);
     let response = app
         .post_change_password(&serde_json::json!({
-            "current_password": &app.context.test_user.password,
+            "current_password": &app.test_user.password,
             "new_password": &new_password,
             "new_password_check": &new_password,
         }))
@@ -124,15 +124,15 @@ async fn changing_password_works(pool: PgPool) {
 
     let response = app
         .post_login(&serde_json::json!({
-            "username": &app.context.test_user.username,
-            "password": &app.context.test_user.password,
+            "username": &app.test_user.username,
+            "password": &app.test_user.password,
         }))
         .await;
     common::assert_is_redirect_to(&response, "/admin/dashboard");
 
     let response = app
         .post_change_password(&serde_json::json!({
-            "current_password": &app.context.test_user.password,
+            "current_password": &app.test_user.password,
             "new_password": &new_password,
             "new_password_check": &new_password,
         }))
@@ -150,7 +150,7 @@ async fn changing_password_works(pool: PgPool) {
 
     let response = app
         .post_login(&serde_json::json!({
-            "username": &app.context.test_user.username,
+            "username": &app.test_user.username,
             "password": &new_password,
         }))
         .await;

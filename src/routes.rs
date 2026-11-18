@@ -1,7 +1,4 @@
-use axum::{Router, http::Request, middleware, routing};
-use axum_messages::MessagesManagerLayer;
-use tower_http::trace::TraceLayer;
-use uuid::Uuid;
+use axum::{Router, middleware, routing};
 
 use crate::{authentication::reject_anonymous_users, state::AppState};
 
@@ -19,7 +16,7 @@ use login::*;
 use subscriptions::*;
 use subscriptions_confirm::*;
 
-pub fn create_router(state: AppState) -> Router {
+pub fn create_router() -> Router<AppState> {
     let admin_router = Router::new()
         .route("/dashboard", routing::get(admin_dashboard))
         .route("/logout", routing::post(logout))
@@ -40,16 +37,4 @@ pub fn create_router(state: AppState) -> Router {
         .route("/subscriptions", routing::post(subscribe))
         .route("/subscriptions/confirm", routing::get(confirm))
         .nest("/admin", admin_router)
-        .layer(
-            TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
-                tracing::info_span!(
-                    "http_request",
-                    method = %request.method(),
-                    uri = %request.uri(),
-                    request_id = %Uuid::now_v7(),
-                )
-            }),
-        )
-        .layer(MessagesManagerLayer)
-        .with_state(state)
 }

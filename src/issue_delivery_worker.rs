@@ -7,25 +7,15 @@ use uuid::Uuid;
 use crate::{configuration::Settings, domain::SubscriberEmail, state::EmailClient};
 
 pub async fn run_worker_until_stopped(configuration: Settings) -> anyhow::Result<()> {
-    let connetction_pool = PgPoolOptions::new()
+    let connection_pool = PgPoolOptions::new()
         .acquire_timeout(Duration::from_secs(2))
         .connect_lazy_with(configuration.database.connection_options());
 
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    );
-    worker_loop(connetction_pool, email_client).await
+    let email_client = configuration.email_client.client();
+    worker_loop(connection_pool, email_client).await
 }
 
-enum ExecutionOutcome {
+pub enum ExecutionOutcome {
     TaskCompleted,
     EmptyQueue,
 }
@@ -37,7 +27,7 @@ enum ExecutionOutcome {
         subscriber_email = tracing::field::Empty,
     )
 )]
-async fn try_execute_task(
+pub async fn try_execute_task(
     pool: &PgPool,
     email_client: &EmailClient,
 ) -> anyhow::Result<ExecutionOutcome> {
