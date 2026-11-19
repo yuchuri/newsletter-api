@@ -16,6 +16,10 @@ properties:
         value: "${ACR_PASSWORD}"
       - name: db-password
         value: "${DB_PASSWORD}"
+      - name: redis-uri
+        value: "${REDIS_URI}"
+      - name: email-token
+        value: "${APP_EMAIL_CLIENT__AUTHORIZATION_TOKEN}"
       - name: hmac-secret
         value: "${HMAC_SECRET}"
   template:
@@ -42,6 +46,12 @@ properties:
             secretRef: db-password
           - name: APP_DATABASE__DATABASE_NAME
             value: "newsletter"
+          - name: APP_REDIS_URI
+            secretRef: redis-uri
+          - name: APP_EMAIL_CLIENT__SENDER_EMAIL
+            value: "${APP_EMAIL_CLIENT__SENDER_EMAIL}"
+          - name: APP_EMAIL_CLIENT__AUTHORIZATION_TOKEN
+            secretRef: email-token
         probes:
           - type: Liveness
             httpGet:

@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into newsletter_issues (\n            title,\n            text_content,\n            html_content\n        )\n        values ($1, $2, $3)\n        returning newsletter_issue_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "newsletter_issue_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "newsletter_issues",
+            "name": "newsletter_issue_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "edc674375b4eff89f8dfe13f77f8f6c3f7b8e13a3dd505ecee0cba3c4a491127"
+}

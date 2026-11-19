@@ -8,16 +8,17 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
+COPY crate crate
 RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin newsletter-api
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 WORKDIR /app
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && apt-get install -y --no-install-recommends openssl ca-certificates redis-server \
     && apt-get autoremove -y \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
@@ -25,4 +26,4 @@ RUN apt-get update -y \
 COPY --from=builder /app/target/release/newsletter-api newsletter-api
 COPY configuration configuration
 ENV APP_ENVIRONMENT=production
-ENTRYPOINT ["./newsletter-api"]
+ENTRYPOINT ["sh", "-c", "redis-server --daemonize yes && exec ./newsletter-api"]

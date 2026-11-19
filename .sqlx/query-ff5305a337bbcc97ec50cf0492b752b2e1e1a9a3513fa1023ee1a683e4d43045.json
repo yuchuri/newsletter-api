@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select \n            response_status_code,\n            response_headers as \"response_headers: Vec<HeaderPairRecord>\",\n            response_body\n        from idempotency\n        where\n            user_id = $1 and\n            idempotency_key = $2\n        ",
+  "query": "\n        select \n            response_status_code as \"response_status_code!\",\n            response_headers as \"response_headers!: Vec<HeaderPairRecord>\",\n            response_body as \"response_body!\"\n        from idempotency\n        where\n            user_id = $1 and\n            idempotency_key = $2\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "response_status_code",
+        "name": "response_status_code!",
         "type_info": "Int2",
         "origin": {
           "Table": {
@@ -16,7 +16,7 @@
       },
       {
         "ordinal": 1,
-        "name": "response_headers: Vec<HeaderPairRecord>",
+        "name": "response_headers!: Vec<HeaderPairRecord>",
         "type_info": {
           "Custom": {
             "name": "header_pair[]",
@@ -50,7 +50,7 @@
       },
       {
         "ordinal": 2,
-        "name": "response_body",
+        "name": "response_body!",
         "type_info": "Bytea",
         "origin": {
           "Table": {
@@ -67,10 +67,10 @@
       ]
     },
     "nullable": [
-      false,
-      false,
-      false
+      true,
+      true,
+      true
     ]
   },
-  "hash": "9eaa3aedb55629cbe57c4772ebc33fa1bade1e3fdaeb680f3f1dfdf6485d94df"
+  "hash": "ff5305a337bbcc97ec50cf0492b752b2e1e1a9a3513fa1023ee1a683e4d43045"
 }

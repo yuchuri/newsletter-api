@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select newsletter_issue_id, subscriber_email\n        from issue_delivery_queue\n        for update skip locked\n        limit 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "newsletter_issue_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "issue_delivery_queue",
+            "name": "newsletter_issue_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "subscriber_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issue_delivery_queue",
+            "name": "subscriber_email"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7e1215f575ee523fa5cf9ea31dc436b1bef91e7e16aecf95d95ee055679e7ec8"
+}
